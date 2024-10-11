@@ -6,6 +6,7 @@ import os
 import contextlib
 import pickle
 
+from influxdb_client import client
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
 from keras.src.layers import MaxPooling1D, Conv1D
@@ -248,25 +249,62 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_mod
 
 
 if __name__ == '__main__':
-    frequency = 25
-    time_required_ms = 3500
-    samples_required = int(time_required_ms * frequency / 1000)
+    from influxdb_client import InfluxDBClient
 
-    path = "../domino_dataset/data_domino.csv"
-    class_labels = ['Cycling', 'Lying', 'Running', 'Sitting', 'Standing', 'Walking']
+    client = InfluxDBClient(url="http://localhost:8085", token="ax1hjMD3MVseMkM4Zg1t12sPvakLlyj_bLmHjEMDshXCPEjfN1fIW_owMNQs4VSk-JDiDswUD7HSF2jUIAcEGw==", org="local_test")
+    query_api = client.query_api()
 
-    # Choose the model
-    models = ['lstm_1', 'gru_1', 'lstm_2', 'gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
-    models = models[0:2]
+    query = 'from(bucket: "local_data") \
+        |> range(start: time(v: "2020-02-02T02:00:00+02:00"), stop: time(v: "2020-02-02T02:09:50+02:00")) \
+        |> filter(fn: (r) => r["_field"] == "x" or r["_field"] == "y" or r["_field"] == "z")\
+        |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn: "_value")'
 
-    for chosen_model in models:
-        print(f'{chosen_model=}')
+    result = query_api.query(org='local_test', query=query)
+    data = []
 
-        train_set, test_set, unique_activities = train_test_split(path)
-        X_train, y_train, X_test, y_test = preprocess_data(train_set, test_set, samples_required, unique_activities)
-        y_test_labels, y_pred_labels = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
-                                                              class_labels, train_model=True)
+    for table in result:
+        for record in table.records:
+            data.append({
+                'Time': record.get_time(),
+                'accel_x': record["x"],
+                'accel_y': record["y"],
+                'accel_z': record["z"]
+            })
 
-        # Uncomment if you want to create the confusion matrices for the results
-        plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model)
+    df = pd.DataFrame(data)
+    print(df.head())
 
+    # # Optionally, save the DataFrame to a CSV file
+    # df.to_csv("accelerometer_data.csv", index=False)
+
+    # results = []
+    # for table in result:
+    #     for record in table.records:
+    #         print(f'Time: {record.get_time()}, X: {record["x"]}, Y: {record["y"]}, Z: {record["z"]}')
+    #         # results.append((record.get_field(), record.get_value()))
+    #
+    # print(results)
+
+
+    # frequency = 25
+    # time_required_ms = 3500
+    # samples_required = int(time_required_ms * frequency / 1000)
+    #
+    # path = "../domino_dataset/data_domino.csv"
+    # class_labels = ['Cycling', 'Lying', 'Running', 'Sitting', 'Standing', 'Walking']
+    #
+    # # Choose the model
+    # models = ['lstm_1', 'gru_1', 'lstm_2', 'gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    # models = models[0:2]
+    #
+    # for chosen_model in models:
+    #     print(f'{chosen_model=}')
+    #
+    #     train_set, test_set, unique_activities = train_test_split(path)
+    #     X_train, y_train, X_test, y_test = preprocess_data(train_set, test_set, samples_required, unique_activities)
+    #     y_test_labels, y_pred_labels = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
+    #                                                           class_labels, train_model=True)
+    #
+    #     # Uncomment if you want to create the confusion matrices for the results
+    #     plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model)
+    #
