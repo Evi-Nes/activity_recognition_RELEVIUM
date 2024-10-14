@@ -18,82 +18,25 @@ devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 
 
-def create_sequences(X_data, Y_data, timesteps, unique_activities):
-    """
-    This function takes the X, Y data as time instances and transforms them to small timeseries.
-    For each activity, creates sequences using sliding windows with 50% overlap.
-    :returns: data as timeseries
-    """
-    X_seq, Y_seq = [], []
-    for activity in unique_activities:
-        for i in range(0, len(X_data) - timesteps, timesteps // 2):
-            if Y_data.iloc[i] != activity or Y_data.iloc[i + timesteps] != activity:
-                continue
-
-            X_seq.append(X_data.iloc[i:(i + timesteps)].values)
-            Y_seq.append(activity)
-    X_seq, Y_seq = np.array(X_seq), np.array(Y_seq)
-    return X_seq, Y_seq.reshape(-1, 1)
-
-
-def train_test_split(path):
-    """
-    This function splits the data to train-test sets. After reading the csv file, it maps the activities to numbers,
-    removes some undesired activities, sets the frequency of the data to 25 Hz and creates the train and test sets.
-    :return: train_data, test_data, unique_activities
-    """
-    data = pd.read_csv(path)
+def preprocess_data(data, timesteps):
     data = data.drop(['timestamp'], axis=1)
-
-    undesired_activities = [0, 7, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 24]
-    data = data[~data['activity'].isin(undesired_activities)]
     data = data.dropna()
-
-    data['activity'] = pd.Categorical(data['activity'], categories=[6, 1, 5, 2, 3, 4], ordered=True)
-    data = data.sort_values(by='activity')
-
-    number_to_number = {6: 1, 1: 2, 5: 3, 2: 4, 3: 5, 4: 6}
-    data['activity'] = data['activity'].map(number_to_number)
-
-    unique_activities = data['activity'].unique()
-    data = data.iloc[::4, :]
 
     columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
     scaler = RobustScaler()
     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
 
-    test_data = data
+    X_seq = []
+    for i in range(0, len(data) - timesteps, timesteps//2):
+        X_seq.append(data.iloc[i:(i+timesteps)].values)
 
-    return test_data, unique_activities
+    X_seq = np.array(X_seq)
+    # print(X_seq)
 
-
-def preprocess_data(test_data, timesteps, unique_activities):
-    """
-    This function pre-processes the data. It uses the create_sequences function to create small timeseries and encodes
-    the data using OneHotEncoder.
-    :returns: the preprocessed data that can be used by the models (X_train, y_train, X_test, y_test)
-    """
-    X_test, y_test = create_sequences(test_data[['accel_x', 'accel_y', 'accel_z']], test_data['activity'],
-                                      timesteps, unique_activities)
-
-    np.random.seed(42)
-    random = np.arange(0, len(y_test))
-    np.random.shuffle(random)
-    X_test = X_test[random]
-    y_test = y_test[random]
-
-    # for activity in unique_activities:
-    #     print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
-    #     print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
-
-    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_test)
-    y_test = hot_encoder.transform(y_test)
-
-    return X_test, y_test
+    return X_seq
 
 
-def train_sequential_model(X_test, y_test, chosen_model, class_labels):
+def train_sequential_model(X_data, chosen_model, class_labels):
     """
     This function is used to train the sequential models. If train_model == True, then it trains the model using
     X-train, y_train, else it loads the model from the existing file. Then, it evaluates the model and prints the
@@ -109,73 +52,57 @@ def train_sequential_model(X_test, y_test, chosen_model, class_labels):
 
     # print(model.summary())
 
-    y_pred = model.predict(X_test)
+    y_pred = model.predict(X_data)
     y_pred_labels = np.argmax(y_pred, axis=1)
-    y_test_labels = np.argmax(y_test, axis=1)
-    accuracy = accuracy_score(y_test_labels, y_pred_labels)
-    f1 = f1_score(y_test_labels, y_pred_labels, average='weighted')
-    print("Test Accuracy: %d%%" % (100*accuracy))
-    print("Test F1 Score: %d%%" % (100*f1))
+    y_pred_classes = np.empty(len(y_pred_labels), dtype=object)
 
-    report = classification_report(y_test_labels, y_pred_labels, target_names=class_labels)
-    print(report)
+    for i in range(0, len(y_pred_labels)):
+        y_pred_classes[i] = class_labels[y_pred_labels[i]]
 
-    return y_test_labels, y_pred_labels
-
-
-def plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model):
-    """
-    This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
-    and y_pred_labels parameters, it creates and saves the confusion matrix.
-    """
-    if not os.path.exists('plots'):
-        os.makedirs('plots')
-
-    normalize_cm = [None, 'true']
-    for norm_value in normalize_cm:
-        if norm_value == 'true':
-            format = '.2f'
-            plot_name = f'acc_applied_{chosen_model}_cm_norm.png'
-        else:
-            format = 'd'
-            plot_name = f'acc_applied_{chosen_model}_cm.png'
-
-        disp = ConfusionMatrixDisplay.from_predictions(
-            y_test_labels, y_pred_labels,
-            display_labels=class_labels,
-            normalize=norm_value,
-            xticks_rotation=70,
-            values_format=format,
-            cmap=plt.cm.Blues
-        )
-
-        plt.figure(figsize=(8, 10))
-        plt.title(f'Confusion Matrix for {chosen_model}')
-        disp.plot(cmap=plt.cm.Blues, values_format=format)
-        plt.xticks(rotation=70)
-        plt.tight_layout()
-        plt.savefig(f'plots/{plot_name}', bbox_inches='tight', pad_inches=0.1)
-        # plt.show()
+    return y_pred_labels, y_pred_classes
 
 
 if __name__ == '__main__':
+    from influxdb_client import InfluxDBClient
+
+    client = InfluxDBClient(url="http://localhost:8085", token="ax1hjMD3MVseMkM4Zg1t12sPvakLlyj_bLmHjEMDshXCPEjfN1fIW_owMNQs4VSk-JDiDswUD7HSF2jUIAcEGw==", org="local_test")
+    query_api = client.query_api()
+
+    query = 'from(bucket: "local_data") \
+            |> range(start: time(v: "2020-02-02T02:00:00+02:00"), stop: time(v: "2020-02-02T02:09:50+02:00")) \
+            |> filter(fn: (r) => r["_field"] == "x" or r["_field"] == "y" or r["_field"] == "z")\
+            |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn: "_value")'
+
+    result = query_api.query(org='local_test', query=query)
+    data = []
+
+    for table in result:
+        for record in table.records:
+            data.append({
+                'timestamp': record.get_time(),
+                'accel_x': record["x"],
+                'accel_y': record["y"],
+                'accel_z': record["z"]
+            })
+
+    loaded_df = pd.DataFrame(data)
+    print(loaded_df.head())
+
     frequency = 25
     time_required_ms = 3500
     samples_required = int(time_required_ms * frequency / 1000)
 
-    path = "../pamap2_dataset/data_pamap2.csv"
-    class_labels = ['lying', 'sitting', 'standing', 'walking', 'running', 'cycling']
+    class_labels = ['Cycling', 'Lying', 'Running', 'Sitting', 'Standing', 'Walking']
 
     # Choose the model
     models = ['lstm_1', 'gru_1', 'lstm_2', 'gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn', 'rf', 'knn']
-    models = models[0:2]
+    models = models[0:1]
 
     for chosen_model in models:
         print(f'{chosen_model=}')
 
-        test_set, unique_activities = train_test_split(path)
-        X_test, y_test = preprocess_data(test_set, samples_required, unique_activities)
-        y_test_labels, y_pred_labels = train_sequential_model(X_test, y_test, chosen_model, class_labels)
+        X_seq_data = preprocess_data(loaded_df, samples_required)
+        y_labels, y_classes = train_sequential_model(X_seq_data, chosen_model, class_labels)
 
-        # Uncomment if you want to create the confusion matrices for the results
-        # plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model)
+        print("The predicted activities are:", y_classes)
+
