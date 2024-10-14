@@ -5,6 +5,7 @@ import keras
 import os
 import contextlib
 import pickle
+import pymongo
 
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
@@ -105,4 +106,20 @@ if __name__ == '__main__':
         y_labels, y_classes = train_sequential_model(X_seq_data, chosen_model, class_labels)
 
         print("The predicted activities are:", y_classes)
+
+    # Connect to MongoDB
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+    # Select the database (it will be created if it doesn't exist)
+    db = client["ReleviumData"]
+
+    # Select the collection (it will be created if it doesn't exist)
+    collection = db["accelerometer"]
+
+    # Insert each string as its own document
+    for item in y_classes:
+        document = {"recorder activity": item}
+        collection.insert_one(document)
+
+    print("Data uploaded successfully!")
 
