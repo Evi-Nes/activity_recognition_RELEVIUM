@@ -1,20 +1,9 @@
-# with open('a_s_RELEVIUM-MAINZ-01-01_20200202_001', 'r') as file:
-#     content = file.read()
-# print(content)
-
-# with open('a_s_RELEVIUM-MAINZ-01-01_20200202_001', 'r') as file:
-#     # Loop through each line in the file
-#     for line in file:
-#
-#         print(line.strip())
-
-
 import time
 from datetime import datetime
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-bucket = "static_data"
+bucket = "actual_data"
 org = "local_test"
 client = InfluxDBClient(url="http://localhost:8085", token="ax1hjMD3MVseMkM4Zg1t12sPvakLlyj_bLmHjEMDshXCPEjfN1fIW_owMNQs4VSk-JDiDswUD7HSF2jUIAcEGw==", org=org)
 
@@ -43,8 +32,7 @@ try:
             sensor_value_x = fields_dict['x']
             sensor_value_y = fields_dict['y']
             sensor_value_z = fields_dict['z']
-            dt = datetime.strptime("2024-10-14 17:30:00", "%Y-%m-%d %H:%M:%S")
-            timestamp = int(dt.timestamp() * 1000)   # to milliseconds
+            timestamp = int(time.time() * 1_000_000_000)
 
             # Create a data point in the required line protocol format
             line_protocol = (
@@ -54,18 +42,16 @@ try:
                 f"{timestamp}"
             )
 
-            # Write the data point to InfluxDB
             write_api.write(bucket=bucket, org=org, record=line_protocol, precision='ms')
 
             print(f"Uploaded data: {line_protocol}")
 
-            time.sleep(1)
+            time.sleep(0.5)
 
 except KeyboardInterrupt:
     print("Live data upload stopped.")
 
 finally:
-    # Close the InfluxDB client connection
     client.close()
 
 

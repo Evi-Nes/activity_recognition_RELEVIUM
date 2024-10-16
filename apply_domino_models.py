@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -32,18 +33,11 @@ def preprocess_data(data, timesteps):
         X_seq.append(data.iloc[i:(i+timesteps)].values)
 
     X_seq = np.array(X_seq)
-    # print(X_seq)
 
     return X_seq
 
 
 def train_sequential_model(X_data, chosen_model, class_labels):
-    """
-    This function is used to train the sequential models. If train_model == True, then it trains the model using
-    X-train, y_train, else it loads the model from the existing file. Then, it evaluates the model and prints the
-    classification report.
-    :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
-    """
     if not os.path.exists('saved_models'):
         os.makedirs('saved_models')
 
@@ -66,28 +60,64 @@ def train_sequential_model(X_data, chosen_model, class_labels):
 if __name__ == '__main__':
     from influxdb_client import InfluxDBClient
 
-    client = InfluxDBClient(url="http://localhost:8085", token="ax1hjMD3MVseMkM4Zg1t12sPvakLlyj_bLmHjEMDshXCPEjfN1fIW_owMNQs4VSk-JDiDswUD7HSF2jUIAcEGw==", org="local_test")
+    bucket = 'actual_data'
+    org = 'local_test'
+    client = InfluxDBClient(url="http://localhost:8085", token="ax1hjMD3MVseMkM4Zg1t12sPvakLlyj_bLmHjEMDshXCPEjfN1fIW_owMNQs4VSk-JDiDswUD7HSF2jUIAcEGw==", org=org)
     query_api = client.query_api()
 
-    query = 'from(bucket: "local_data") \
-            |> range(start: time(v: "2020-02-02T02:00:00+02:00"), stop: time(v: "2020-02-02T02:09:50+02:00")) \
-            |> filter(fn: (r) => r["_field"] == "x" or r["_field"] == "y" or r["_field"] == "z")\
-            |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn: "_value")'
+    def fetch_data():
+        while True:
+            query = f'''
+            from(bucket: "{bucket}")
+              |> range(start: -5m)\
+              |> filter(fn: (r) => r["_field"] == "x" or r["_field"] == "y" or r["_field"] == "z")\
+              |> filter(fn: (r) => r["patient_id"] == "RELEVIUM-MAINZ-01-01")\
+              |> filter(fn: (r) => r["device"] == "Smartwatch")\
+                |> filter(fn: (r) => r["_measurement"] == "accelerometer")\
+              |> pivot(rowKey:["_time"], columnKey:["_field"], valueColumn: "_value")
+            '''
 
-    result = query_api.query(org='local_test', query=query)
-    data = []
+            result = query_api.query(org=org, query=query)
+            data = []
 
-    for table in result:
-        for record in table.records:
-            data.append({
-                'timestamp': record.get_time(),
-                'accel_x': record["x"],
-                'accel_y': record["y"],
-                'accel_z': record["z"]
-            })
+            for table in result:
+                for record in table.records:
+                    data.append({
+                        'timestamp': record.get_time(),
+                        'accel_x': record["x"],
+                        'accel_y': record["y"],
+                        'accel_z': record["z"]
+                    })
+                    patient_id = record["patient_id"]
+                    device = record["device"]
+                    sensor = record["_measurement"]
 
-    loaded_df = pd.DataFrame(data)
-    print(loaded_df.head())
+            loaded_df = pd.DataFrame(data)
+            if len(loaded_df) < samples_required:
+                print('Not enough samples yet')
+                continue
+
+            chosen_model = 'lstm_1'
+            X_seq_data = preprocess_data(loaded_df, samples_required)
+            y_labels, y_classes = train_sequential_model(X_seq_data, chosen_model, class_labels)
+
+            print("The predicted activities are:", y_classes)
+
+            time.sleep(2)
+
+            # Connect to MongoDB
+            client = pymongo.MongoClient("mongodb://localhost:27017/")
+
+            db = client["ReleviumData"]
+            collection = db["accelerometer"]
+
+            documents = [{"recorder activity": item, "patient id": patient_id, "device": device, "sensor": sensor} for item in y_classes]
+            collection.insert_many(documents)
+
+            print("Data uploaded successfully!")
+
+            time.sleep(10)
+
 
     frequency = 25
     time_required_ms = 3500
@@ -95,31 +125,11 @@ if __name__ == '__main__':
 
     class_labels = ['Cycling', 'Lying', 'Running', 'Sitting', 'Standing', 'Walking']
 
-    # Choose the model
-    models = ['lstm_1', 'gru_1', 'lstm_2', 'gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn', 'rf', 'knn']
-    models = models[0:1]
+    try:
+        fetch_data()
+    except KeyboardInterrupt:
+        print("Live data fetching stopped.")
+    finally:
+        client.close()
 
-    for chosen_model in models:
-        print(f'{chosen_model=}')
-
-        X_seq_data = preprocess_data(loaded_df, samples_required)
-        y_labels, y_classes = train_sequential_model(X_seq_data, chosen_model, class_labels)
-
-        print("The predicted activities are:", y_classes)
-
-    # Connect to MongoDB
-    client = pymongo.MongoClient("mongodb://localhost:27017/")
-
-    # Select the database (it will be created if it doesn't exist)
-    db = client["ReleviumData"]
-
-    # Select the collection (it will be created if it doesn't exist)
-    collection = db["accelerometer"]
-
-    # Insert each string as its own document
-    for item in y_classes:
-        document = {"recorder activity": item}
-        collection.insert_one(document)
-
-    print("Data uploaded successfully!")
 
