@@ -3,9 +3,9 @@ from datetime import datetime
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-bucket = "actual_data"
-org = "local_test"
-client = InfluxDBClient(url="http://localhost:8085", token="ax1hjMD3MVseMkM4Zg1t12sPvakLlyj_bLmHjEMDshXCPEjfN1fIW_owMNQs4VSk-JDiDswUD7HSF2jUIAcEGw==", org=org)
+bucket = "my_bucket"
+org = "my_org"
+client = InfluxDBClient(url="http://localhost:8086", token="2o0W-fSz6Cv2EH1rKkAOotZ8oaBAr_r2V09-kTA6zBdhMGC_9fx6yl49HF7T1ndRGjFhRs__YhkL0Dy8uNm2WQ==", org=org)
 
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
