@@ -38,8 +38,8 @@ def preprocess_data(data, timesteps):
 
 
 def train_sequential_model(X_data, chosen_model, class_labels):
-    if not os.path.exists('saved_models'):
-        os.makedirs('saved_models')
+    if not os.path.exists('../saved_models'):
+        os.makedirs('../saved_models')
 
     file_name = f'saved_models/acc_domino_{chosen_model}_model.h5'
 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
                 print('Not enough samples yet')
                 continue
 
-            chosen_model = 'lstm_1'
+            chosen_model = 'gru_2'
             X_seq_data = preprocess_data(loaded_df, samples_required)
             y_labels, y_classes = train_sequential_model(X_seq_data, chosen_model, class_labels)
 

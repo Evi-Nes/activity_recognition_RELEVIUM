@@ -183,8 +183,8 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     classification report.
     :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
     """
-    if not os.path.exists('saved_models'):
-        os.makedirs('saved_models')
+    if not os.path.exists('../saved_models'):
+        os.makedirs('../saved_models')
 
     file_name = f'saved_models/acc_domino_{chosen_model}_model.h5'
 
@@ -253,11 +253,11 @@ if __name__ == '__main__':
     time_required_ms = 3500
     samples_required = int(time_required_ms * frequency / 1000)
 
-    path = "data_domino.csv"
+    path = "../data_domino.csv"
     class_labels = ['Cycling', 'Lying', 'Running', 'Sitting', 'Standing', 'Walking']
 
     # Choose the model
-    models = ['lstm_1', 'gru_1', 'lstm_2', 'gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    models = ['gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     models = models[0:1]
 
     for chosen_model in models:
