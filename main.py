@@ -9,7 +9,6 @@ import pymongo
 
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 
-
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
@@ -80,7 +79,7 @@ if __name__ == '__main__':
         try:
             query = f'''
                 from(bucket: "{bucket}")
-                  |> range(start: -2d)\
+                  |> range(start: 0, stop: -3d)\
                   |> filter(fn: (r) => r["_measurement"] == "accelerometer")\
                   |> filter(fn: (r) => r["_field"] == "x" or r["_field"] == "y" or r["_field"] == "z")\
                   |> filter(fn: (r) => r["patient_id"] == "{user}")\
