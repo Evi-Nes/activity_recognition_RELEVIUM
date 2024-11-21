@@ -8,3 +8,6 @@
 **.json
 **.txt
 **.arff
+/influx_venv
+/.idea
+a_s_RELE*

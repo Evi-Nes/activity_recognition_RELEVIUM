@@ -1,4 +1,4 @@
-from influxdb_client import InfluxDBClient
+from influxdb_client import InfluxDBClient, WritePrecision
 import pandas as pd
 import time
 import numpy as np
@@ -61,6 +61,7 @@ def predict_activity(X_data, y_data, chosen_model, class_labels):
 
 
 if __name__ == '__main__':
+    print('starting')
 
     bucket = 'my_bucket'
     org = 'my_org'
