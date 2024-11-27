@@ -253,7 +253,7 @@ if __name__ == '__main__':
     time_required_ms = 3500
     samples_required = int(time_required_ms * frequency / 1000)
 
-    path = "../data_domino.csv"
+    path = "data_domino.csv"
     class_labels = ['Cycling', 'Lying', 'Running', 'Sitting', 'Standing', 'Walking']
 
     # Choose the model

@@ -12,7 +12,7 @@ def timestamp_to_date_and_timewindow(millis, window_size=10):
     return date, timewindow
 
 if __name__ == '__main__':
-    create_data = True
+    create_data = False
 
     INFLUX_HOST = 'http://localhost'
     INFLUX_PORT = '8086'
@@ -39,7 +39,7 @@ if __name__ == '__main__':
         df.insert(3, "timewindow", timewindow)
         df.insert(4, "tz", '02:00', allow_duplicates=True)
 
-        print(df.head())
+        print('Iteration started')
 
         df = df.reset_index()
         for index, row in df.iterrows():
@@ -49,7 +49,8 @@ if __name__ == '__main__':
 
         print(df.head())
 
-        # df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        print(df.head())
 
         tag_columns = ["patient_id", "device", "date", "timewindow", "tz"]
         for col in tag_columns:
@@ -68,8 +69,7 @@ if __name__ == '__main__':
                         bucket=INFLUX_BUCKET,
                         data_frame_measurement_name="accelerometer",
                         data_frame_tag_columns=["patient_id", "device", "date", "timewindow", "tz"],
-                        data_frame_timestamp_column="timestamp",
-                        write_precision='ms'
+                        data_frame_timestamp_column="timestamp"
                     )
                     print("Uploaded data to InfluxDB")
                 except InfluxDBError as e:
