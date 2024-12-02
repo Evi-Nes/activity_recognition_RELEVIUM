@@ -69,6 +69,7 @@ print('Gyroscope data done')
 smartwatch_acc = pd.read_csv('wisdm+smartphone+and+smartwatch+activity+and+biometrics+dataset/wisdm-dataset/raw/watch/accel_data.csv')
 smartwatch_gyro = pd.read_csv('wisdm+smartphone+and+smartwatch+activity+and+biometrics+dataset/wisdm-dataset/raw/watch/gyro_data.csv')
 merged_data = pd.merge(smartwatch_acc, smartwatch_gyro, on=['user_id', 'activity', 'timestamp'])
+merged_data = merged_data[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
 
 merged_data.to_csv('data_wisdm.csv', index=False)
 print("Saved merged data")

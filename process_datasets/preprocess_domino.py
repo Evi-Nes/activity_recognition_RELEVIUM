@@ -68,6 +68,7 @@ if merged_files:
         print("Original DataFrame shape:", combined_df.shape)
         print("Cleaned DataFrame shape:", combined_df_cleaned.shape)
 
+        combined_df_cleaned = combined_df_cleaned[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
         combined_file_path = os.path.join(domino_folder, 'data_domino.csv')
         combined_df_cleaned.to_csv('data_domino.csv', index=False)
         print(f"Saved final combined data to {combined_file_path}")

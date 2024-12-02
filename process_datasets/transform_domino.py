@@ -1,0 +1,70 @@
+import numpy as np
+import pandas as pd
+
+
+# Overall DOMINO includes data about
+# a TRANSITION activity + 14 activities:
+# - BRUSHING TEETH
+# - CYCLING
+# - ELEVATOR DOWN
+# - ELEVATOR UP
+# - LYING
+# - MOVING BY CAR
+# - RUNNING
+# - SITTING
+# - SITTING ON TRANSPORT
+# - STAIRS DOWN
+# - STAIRS UP
+# - STANDING
+# - STANDING ON TRANSPORT
+# - WALKING
+
+df = pd.read_csv('data_domino.csv')
+print(f"Initial size of dataframe: {len(df)}")
+
+# remove activities
+desired_activities = ['CYCLING', 'RUNNING', 'SITTING', 'SITTING_ON_TRANSPORT', 'STAIRS_DOWN', 'STAIRS_UP', 'STANDING', 'STANDING_ON_TRANSPORT', 'WALKING']
+df = df[df['activity'].isin(desired_activities)]
+
+# rename activities
+activity_mapping = {
+    'CYCLING': 'cycling', 'RUNNING': 'running', 'SITTING': 'sitting', 'SITTING_ON_TRANSPORT': 'sitting_on_transport',
+    'STAIRS_DOWN': 'stairs_down', 'STAIRS_UP': 'stairs_up', 'STANDING': 'standing', 'STANDING_ON_TRANSPORT': 'standing_on_transport',
+    'WALKING': 'walking'}
+df['activity'] = df['activity'].replace(activity_mapping)
+
+#merge activities
+activity_merging = {
+    'sitting_on_transport': 'sitting', 'stairs_down': 'stairs', 'stairs_up': 'stairs', 'standing_on_transport' : 'standing'}
+df['activity'] = df['activity'].replace(activity_merging)
+
+unique_activities = df['activity'].unique()
+print(unique_activities)
+print(f"New size of dataframe: {len(df)}")
+
+# Downsample 100Hz -> 25Hz
+downsampled_rows = []
+step = 4
+
+for i in range(0, len(df), step):
+    group = df.iloc[i:i + step]
+
+    # Aggregate specific columns
+    aggregated_row = {
+        'timestamp': group['timestamp'].iloc[0],
+        'activity': group['activity'].iloc[0],
+        'user_id': group['user_id'].iloc[0],
+        'accel_x': group['accel_x'].mean(),
+        'accel_y': group['accel_y'].mean(),
+        'accel_z': group['accel_z'].mean(),
+        'gyro_x': group['gyro_x'].mean(),
+        'gyro_y': group['gyro_y'].mean(),
+        'gyro_z': group['gyro_z'].mean(),
+    }
+    downsampled_rows.append(aggregated_row)
+
+downsampled_df = pd.DataFrame(downsampled_rows)
+
+print(downsampled_df.head())
+print(f"Final size of dataframe: {len(downsampled_df)}")
+downsampled_df.to_csv('final_domino.csv', index=False)

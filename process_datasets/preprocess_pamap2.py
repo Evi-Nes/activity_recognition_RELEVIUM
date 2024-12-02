@@ -43,6 +43,7 @@ combined_df.rename(columns={10: 'gyro_x'}, inplace=True)
 combined_df.rename(columns={11: 'gyro_y'}, inplace=True)
 combined_df.rename(columns={12: 'gyro_z'}, inplace=True)
 
+combined_df = combined_df[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
 # combined_df['user_id'] = '101'
 
 combined_df.to_csv('data_pamap2.csv', index=False)
