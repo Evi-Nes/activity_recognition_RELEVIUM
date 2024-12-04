@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 
@@ -64,7 +63,11 @@ for i in range(0, len(df), step):
     downsampled_rows.append(aggregated_row)
 
 downsampled_df = pd.DataFrame(downsampled_rows)
-
+downsampled_df['user_id'] = downsampled_df['user_id'].astype(str) + 'D'
+columns = ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
+for column in columns:
+    downsampled_df[column] = downsampled_df[column].apply(lambda x: round(x, 3))
 print(downsampled_df.head())
+
 print(f"Final size of dataframe: {len(downsampled_df)}")
 downsampled_df.to_csv('final_domino.csv', index=False)

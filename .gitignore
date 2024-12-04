@@ -8,6 +8,9 @@
 **.json
 **.txt
 **.arff
-/influx_venv
+/.venv
 /.idea
 a_s_RELE*
+/process_datasets/DOMINO
+/process_datasets/PAMAP2_Dataset
+/process_datasets/wisdm+smartphone+and+smartwatch+activity+and+biometrics+dataset
