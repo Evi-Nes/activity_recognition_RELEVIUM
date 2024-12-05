@@ -1,4 +1,6 @@
 import os
+from datetime import datetime, timedelta
+
 import pandas as pd
 
 accel_folder = ('wisdm+smartphone+and+smartwatch+activity+and+biometrics+dataset/wisdm-dataset/raw/watch/accel')
@@ -16,8 +18,54 @@ for file in os.listdir(accel_folder):
         accel_data['accel_z'] = accel_data['accel_z'].str.rstrip(';')
 
         accel_data['timestamp'] = accel_data['timestamp'].astype(int)
-        accel_data['user_id'] = accel_data['user_id']
         user_id = accel_data['user_id'][0]
+
+        # 20Hz -> 25Hz
+        # print(accel_data.index.duplicated().sum())
+        # print('\n')
+
+        # Set timestamp as index
+        if accel_data['timestamp'][0] > 14:
+            unit = 'us'
+        else:
+            unit = 'ms'
+        accel_data = accel_data.sort_values(by='timestamp')
+        accel_data['datetime'] = pd.to_datetime(accel_data['timestamp'], unit=unit)
+        print(f"Timestamp Range: {accel_data['timestamp'].min()} to {accel_data['timestamp'].max()}")
+
+        accel_data['interval'] = accel_data['datetime'].diff().dt.total_seconds()
+        frequency = accel_data['interval'].mean()
+        print(f"Approximate frequency: {frequency} seconds")
+
+        yesterday = datetime.now() - timedelta(days=1)
+        accel_data['yesterday_datetime'] = accel_data['datetime'].apply(lambda x: x.replace(
+            year=yesterday.year, month=yesterday.month, day=yesterday.day))
+
+        # Print results
+        print(accel_data[['timestamp', 'datetime', 'yesterday_datetime']])
+
+
+        accel_data = accel_data.sort_values(by='datetime')
+
+        accel_data['interval'] = accel_data['datetime'].diff().dt.total_seconds()
+        print(accel_data['interval'].describe())
+
+        accel_data.set_index('datetime', inplace=True)
+        # print(accel_data.head())
+        # print(df['timestamp'].diff().describe())
+        accel_data = accel_data.resample('50ms').interpolate()
+        accel_data.reset_index(inplace=True)
+
+        accel_data['interval'] = accel_data['datetime'].diff().dt.total_seconds() * 1000
+        print(accel_data['interval'].describe())
+
+        print(accel_data.index.duplicated().sum())
+        print('\n')
+
+        # df.asfreq(freq='40ms', method='ffill')
+        # df = df.reset_index()
+        accel_data = accel_data.resample('40ms').ffill()
+        accel_data = accel_data.reset_index()
 
         merged_file_path = os.path.join(accel_folder, f'merged_user_{user_id}.csv')
         accel_data.to_csv(merged_file_path, index=False)
