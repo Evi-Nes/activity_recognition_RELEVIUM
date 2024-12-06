@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from numpy.ma.core import count
 
 # A Walking
 # B Jogging
@@ -20,17 +21,14 @@ import pandas as pd
 # R Clapping
 # S Folding Clothes
 
-
 df = pd.read_csv('data_wisdm.csv')
+df['user_id'] = df['user_id'].astype(int)
 df['user_id'] = df['user_id'].astype(str) + 'W'
 # print(df.head())
 
 # remove activities
 desired_activities = ['A', 'B', 'C', 'D', 'E']
 df = df[df['activity'].isin(desired_activities)]
-
-# for activity in desired_activities:
-#     print(len(df[df['activity'] == activity]))
 
 # rename activities
 activity_mapping = {
@@ -39,28 +37,14 @@ df['activity'] = df['activity'].replace(activity_mapping)
 
 df = df[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
 unique_activities = df['activity'].unique()
-print(unique_activities)
-# print(df.head())
-# print(len(df))
+print(df.head)
 
-# Increase frequency 20Hz -> 25Hz
-print(df.index.duplicated().sum())
-print('\n')
-# Set timestamp as index
-df['datetime'] = pd.to_datetime(df['timestamp'], unit='us')
-print(f"Timestamp Range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+for activity in unique_activities:
+    print(activity)
+    print(count(df[df['activity'] == activity]))
 
-df.set_index('datetime', inplace=True)
-print(df.head())
-# print(df['timestamp'].diff().describe())
+df.to_csv('final_wisdm.csv', index=False)
 
-print(df.index.duplicated().sum())
-print('\n')
 
-# df.asfreq(freq='40ms', method='ffill')
-# df = df.reset_index()
-df = df.resample('40ms').ffill()  # Forward-fill missing values
-df = df.reset_index()
-# df = df.reset_index().rename(columns={'index': 'timestamp'})
 
 

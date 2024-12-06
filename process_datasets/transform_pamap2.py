@@ -34,7 +34,7 @@ df = df[df['activity'].isin(desired_activities)]
 
 # rename activities
 activity_mapping = {
-    2: 'sitting', 3: 'standing', 4: 'walking', 5: 'running', 6: 'cycling', 7: 'walking', 12: 'stairs', 13: 'stairs', 24: 'exercising'}
+    2: 'sitting', 3: 'standing', 4: 'walking', 5: 'running', 6: 'cycling', 7: 'walking', 12: 'stairs', 13: 'stairs', 24: 'exercise'}
 df['activity'] = df['activity'].replace(activity_mapping)
 
 unique_activities = df['activity'].unique()
