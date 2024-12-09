@@ -1,16 +1,15 @@
 import os
-from datetime import date, timedelta, datetime
 import pandas as pd
 
 folder = 'single_activity_walk_running_data_csv'
 merged_files = []
 i = 1
 columns = ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
+user_id = '1E'
 
 for file in os.listdir(folder):
     data = pd.read_csv(os.path.join(folder, file))
     data.columns = ['timestamp', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
-    user_id = '1E'
 
     if file.startswith('Running'):
         activity = 'running'

@@ -1,31 +1,52 @@
 import os
-from datetime import date, timedelta, datetime
 import pandas as pd
 
-columns = ['elapsed_seconds', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
-columns_round = ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
-hour = 0
+folder = 'single_activity_data_csv'
 merged_files = []
+i = 1
+columns = ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
+user_id = '3E'
+activity = 'exercise'
 
-for filename in os.listdir('exercise_data'):
-    df = pd.read_csv(f'exercise_data/{filename}', header=None, names=columns, skiprows=1)
-    filename_split = filename.split('_')
-    df['user_id'] = filename_split[0].replace('subject', '')
-    df['user_id'] = df['user_id'].astype(str) + 'E'
+for file in os.listdir(folder):
+    data = pd.read_csv(os.path.join(folder, file))
+    data.columns = ['timestamp', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
+    data['activity'] = activity
+    data['user_id'] = user_id
 
-    for column in columns_round:
-        df[column] = df[column].apply(lambda x: round(x, 3))
+    for column in columns:
+        data[column] = data[column].apply(lambda x: round(x, 3))
 
-    start_time = datetime.now() +timedelta(hours=hour)
-    df['timestamp'] = df['elapsed_seconds'].apply(lambda x: start_time + timedelta(seconds=x))
-    hour += 1
+    merged_file_path = os.path.join(folder, f'data_batch_{i}.csv')
+    merged_files.append(merged_file_path)
+    data.to_csv(merged_file_path, index=False)
+    print(f'Writing {merged_file_path}')
+    i = i + 1
 
-    df['activity'] = 'exercise'
-    df = df[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
-    # print(df.head())
 
-    merged_files.append(df)
+if merged_files:
+    all_data = []
 
-combined_df = pd.concat(merged_files, ignore_index=True)
-combined_df.to_csv('final_exercise.csv', index=False)
-print(combined_df.head())
+    for file in merged_files:
+        df = pd.read_csv(file)
+        all_data.append(df)
+
+    if all_data:
+        combined_df = pd.concat(all_data, ignore_index=True)
+
+        missing_values = combined_df.isnull().sum()
+        print("Missing values in each column:\n", missing_values)
+        combined_df_cleaned = combined_df.dropna()
+        print("Original DataFrame shape:", combined_df.shape)
+        print("Cleaned DataFrame shape:", combined_df_cleaned.shape)
+
+        combined_df_cleaned = combined_df_cleaned[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
+        combined_file_path = os.path.join(folder, 'final_exercise.csv')
+        combined_df_cleaned.to_csv('final_exercise.csv', index=False)
+        print(f"Saved final combined data to {combined_file_path}")
+
+    else:
+        print("No dataframes found to concatenate.")
+
+else:
+    print("No merged files found.")
