@@ -1,12 +1,12 @@
 import os
 import pandas as pd
 
-folder = 'single_activity_data_csv'
+folder = 'static_exercising'
 merged_files = []
 i = 1
 columns = ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
-user_id = '3E'
-activity = 'exercise'
+user_id = '3DE'
+activity = 'static_exercising'
 
 for file in os.listdir(folder):
     data = pd.read_csv(os.path.join(folder, file))
@@ -42,7 +42,7 @@ if merged_files:
 
         combined_df_cleaned = combined_df_cleaned[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
         combined_file_path = os.path.join(folder, 'final_exercise.csv')
-        combined_df_cleaned.to_csv('final_exercise.csv', index=False)
+        combined_df_cleaned.to_csv('final_static_exercise.csv', index=False)
         print(f"Saved final combined data to {combined_file_path}")
 
     else:
