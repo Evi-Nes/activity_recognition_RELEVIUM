@@ -1,5 +1,5 @@
 import pandas as pd
-
+from numpy.ma import count
 
 # Overall DOMINO includes data about
 # a TRANSITION activity + 14 activities:
@@ -22,23 +22,19 @@ df = pd.read_csv('data_domino.csv')
 print(f"Initial size of dataframe: {len(df)}")
 
 # remove activities
-desired_activities = ['CYCLING', 'RUNNING', 'SITTING', 'SITTING_ON_TRANSPORT', 'STAIRS_DOWN', 'STAIRS_UP', 'STANDING', 'STANDING_ON_TRANSPORT', 'WALKING']
+desired_activities = ['CYCLING', 'LYING', 'RUNNING', 'SITTING', 'SITTING_ON_TRANSPORT', 'STAIRS_DOWN', 'STAIRS_UP', 'STANDING', 'STANDING_ON_TRANSPORT', 'WALKING']
 df = df[df['activity'].isin(desired_activities)]
 
-# rename activities
+# rename and merge activities
 activity_mapping = {
-    'CYCLING': 'cycling', 'RUNNING': 'running', 'SITTING': 'sitting', 'SITTING_ON_TRANSPORT': 'sitting_on_transport',
-    'STAIRS_DOWN': 'stairs_down', 'STAIRS_UP': 'stairs_up', 'STANDING': 'standing', 'STANDING_ON_TRANSPORT': 'standing_on_transport',
-    'WALKING': 'walking'}
+    'CYCLING': 'cycling', 'LYING': 'lying', 'RUNNING': 'running', 'SITTING': 'sitting', 'SITTING_ON_TRANSPORT': 'sitting',
+    'STAIRS_DOWN': 'walking', 'STAIRS_UP': 'walking', 'STANDING': 'standing', 'STANDING_ON_TRANSPORT': 'standing', 'WALKING': 'walking'}
 df['activity'] = df['activity'].replace(activity_mapping)
 
-#merge activities
-activity_merging = {
-    'sitting_on_transport': 'sitting', 'stairs_down': 'stairs', 'stairs_up': 'stairs', 'standing_on_transport' : 'standing'}
-df['activity'] = df['activity'].replace(activity_merging)
-
 unique_activities = df['activity'].unique()
-print(unique_activities)
+for activity in unique_activities:
+    print(activity)
+    print(count(df[df['activity'] == activity]))
 print(f"New size of dataframe: {len(df)}")
 
 # Downsample 100Hz -> 25Hz

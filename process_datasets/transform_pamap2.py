@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from numpy.ma import count
 
 # 1 lying
 # 2 sitting
@@ -26,23 +27,21 @@ df['user_id'] = df['user_id'].astype(str) + 'P'
 print(df.head())
 
 # remove activities
-desired_activities = [2, 3, 4, 5, 6, 7, 12, 13, 24]
+desired_activities = [1, 2, 3, 4, 5, 6, 7, 24]
 df = df[df['activity'].isin(desired_activities)]
-
-# for activity in desired_activities:
-#     print(len(df[df['activity'] == activity]))
+unique_activities = df['activity'].unique()
 
 # rename activities
-activity_mapping = {
-    2: 'sitting', 3: 'standing', 4: 'walking', 5: 'running', 6: 'cycling', 7: 'walking', 12: 'stairs', 13: 'stairs', 24: 'exercise'}
+activity_mapping = {1: 'lying', 2: 'sitting', 3: 'standing', 4: 'walking', 5: 'running', 6: 'cycling', 7: 'walking', 24: 'exercise'}
 df['activity'] = df['activity'].replace(activity_mapping)
 
 unique_activities = df['activity'].unique()
-print(unique_activities)
+for activity in unique_activities:
+    print(activity)
+    print(count(df[df['activity'] == activity]))
 
 df['timestamp'] = df['timestamp'] * 1000
 df['datetime_ms'] = pd.to_datetime(df['timestamp'], unit='ms')
-# print(f"Timestamp Range: {df['datetime'].min()} to {df['datetime'].max()}")
 print(df.head())
 
 # Downsample 100Hz -> 25Hz

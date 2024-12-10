@@ -27,12 +27,12 @@ df['user_id'] = df['user_id'].astype(str) + 'W'
 # print(df.head())
 
 # remove activities
-desired_activities = ['A', 'B', 'C', 'D', 'E']
+desired_activities = ['A', 'B', 'D', 'E']
 df = df[df['activity'].isin(desired_activities)]
 
 # rename activities
 activity_mapping = {
-    'A': 'walking', 'B': 'running', 'C': 'stairs', 'D': 'sitting', 'E': 'standing'}
+    'A': 'walking', 'B': 'running', 'D': 'sitting', 'E': 'standing'}
 df['activity'] = df['activity'].replace(activity_mapping)
 
 df = df[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
