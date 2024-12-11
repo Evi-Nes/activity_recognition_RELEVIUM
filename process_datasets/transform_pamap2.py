@@ -27,12 +27,12 @@ df['user_id'] = df['user_id'].astype(str) + 'P'
 print(df.head())
 
 # remove activities
-desired_activities = [1, 2, 3, 4, 5, 6, 7, 24]
+desired_activities = [1, 2, 3, 4, 5, 6, 7]
 df = df[df['activity'].isin(desired_activities)]
 unique_activities = df['activity'].unique()
 
 # rename activities
-activity_mapping = {1: 'lying', 2: 'sitting', 3: 'standing', 4: 'walking', 5: 'running', 6: 'cycling', 7: 'walking', 24: 'exercise'}
+activity_mapping = {1: 'lying', 2: 'sitting', 3: 'standing', 4: 'walking', 5: 'running', 6: 'cycling', 7: 'walking'}
 df['activity'] = df['activity'].replace(activity_mapping)
 
 unique_activities = df['activity'].unique()
