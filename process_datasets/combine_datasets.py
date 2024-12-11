@@ -7,10 +7,10 @@ df_wisdm = pd.read_csv('final_wisdm.csv')
 df_walk_running = pd.read_csv('final_walk_running.csv')
 df_static_exercising = pd.read_csv('final_static_exercise.csv')
 df_dynamic_exercising = pd.read_csv('final_dynamic_exercise.csv')
-df_multilevel_1_2 = pd.read_csv('final_multilevel_1-2.csv')
-df_multilevel_sleep = pd.read_csv('final_multilevel_sleep.csv')
+# df_multilevel_1_2 = pd.read_csv('final_multilevel_1-2.csv')
+# df_multilevel_sleep = pd.read_csv('final_multilevel_sleep.csv')
 
-combined_df = pd.concat([df_domino, df_pamap2, df_wisdm, df_walk_running, df_static_exercising, df_dynamic_exercising, df_multilevel_1_2, df_multilevel_sleep], axis=0, ignore_index=True)
+combined_df = pd.concat([df_domino, df_pamap2, df_wisdm, df_walk_running, df_static_exercising, df_dynamic_exercising], axis=0, ignore_index=True)
 print(combined_df.head())
 
 unique_activities = combined_df['activity'].unique()
