@@ -48,7 +48,7 @@ for folder in tqdm(os.listdir(main_folder)):
             cross_joined = pd.merge(smartwatch_acc, activity_labels, on='key').drop('key', axis=1)
 
             result = cross_joined[(cross_joined['timestamp'] >= cross_joined['time_start']) & (cross_joined['timestamp'] <= cross_joined['time_end'])]
-            result['user_id'] = user_idresult['user_id'] = user_id.astype(str) + 'M'
+            result['user_id'] = result['user_id'] = user_id.astype(str) + 'M'
             result.rename(columns={'Activity': 'activity'}, inplace=True)
             result = result[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z']]
 
