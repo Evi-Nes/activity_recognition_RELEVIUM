@@ -14,10 +14,11 @@ df_dreamt = pd.read_csv('final_dreamt.csv')
 combined_df = pd.concat([df_domino, df_pamap2, df_wisdm, df_walk_running, df_static_exercising, df_dynamic_exercising, df_dreamt], axis=0, ignore_index=True)
 print(combined_df.head())
 
-unique_activities = combined_df['activity'].unique()
-
-for activity in unique_activities:
-    print(activity)
-    print(count(combined_df[combined_df['activity'] == activity]))
+# unique_activities = combined_df['activity'].unique()
+#
+# for activity in unique_activities:
+#     print(activity)
+#     print(count(combined_df[combined_df['activity'] == activity]))
+print(combined_df['activity'].value_counts())
 
 combined_df.to_csv('combined_dataset7.csv', index=False)

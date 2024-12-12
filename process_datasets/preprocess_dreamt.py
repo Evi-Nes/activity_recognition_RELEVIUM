@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 import numpy as np
-from numpy.ma import count
 
 main_folder = 'dreamt-dataset-for-real-time-sleep-stage-estimation-using-multisensor-wearable-technology-1.0.1/data'
 desired_stages = ['W', 'N1', 'N2', 'N3', 'R']
@@ -21,15 +20,10 @@ for filename in os.listdir(main_folder):
 
     numeric_cols = ['accel_x', 'accel_y', 'accel_z']
     categorical_cols = ['user_id', 'activity']
-    # print(df.index.to_series().diff().value_counts())
-
-    # print(df)
     print(df['activity'].value_counts())
 
     df = df.iloc[::2].reset_index(drop=True)
     df = df.set_index('timestamp')
-
-    # print(df)
     print(df['activity'].value_counts())
 
     # Resample numeric columns and interpolate
@@ -40,39 +34,21 @@ for filename in os.listdir(main_folder):
     data_resampled = pd.concat([numeric_resampled, categorical_resampled], axis=1)
     data_resampled = data_resampled.fillna(method='ffill').fillna(method='bfill')
 
-    print(data_resampled)
+    # print(data_resampled)
 
     original_timestamps = df.index
-    # rounded_original_timestamps = df.index.round('ms')
-    # rounded_resampled_timestamps = data_resampled.index.round('ms')
 
     mask = ~data_resampled.index.isin(original_timestamps)
     data_resampled_filtered = data_resampled[mask]
 
-    print(data_resampled_filtered)
-
     data_resampled_filtered.reset_index(inplace=True)
-    # data_resampled.rename(columns={'index': 'timestamp'}, inplace=True)
     data_resampled_filtered.dropna(inplace=True)
+    data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     print(data_resampled_filtered)
     print(data_resampled_filtered['activity'].value_counts())
 
-    prit
-    resampled_data.reset_index(inplace=True)
-    resampled_data.rename(columns={'index': 'timestamp'}, inplace=True)
-
-    resampled_data = resampled_data[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
-
-    missing_values = resampled_data.isnull().sum()
-    print("Missing values in each column:\n", missing_values)
-    print("Original DataFrame shape:", resampled_data.shape)
-    resampled_data = resampled_data.dropna()
-    print("Cleaned DataFrame shape:", resampled_data.shape)
-
-    merged_files.append(resampled_data)
+    merged_files.append(data_resampled_filtered)
     print(f'Merged {filename}')
-
-    print(resampled_data)
 
 
 combined_df = pd.concat(merged_files, ignore_index=True)
