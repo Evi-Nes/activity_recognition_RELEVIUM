@@ -3,78 +3,122 @@ import pandas as pd
 from tqdm import tqdm
 import re
 
-# Define the path to the DOMINO folder
+# 100Hz frequency, folder per user, different files for accel, gyro and activity labels
+# Overall DOMINO includes data about a TRANSITION activity + 14 activities:
+# - BRUSHING TEETH
+# - CYCLING
+# - ELEVATOR DOWN
+# - ELEVATOR UP
+# - LYING
+# - MOVING BY CAR
+# - RUNNING
+# - SITTING
+# - SITTING ON TRANSPORT
+# - STAIRS DOWN
+# - STAIRS UP
+# - STANDING
+# - STANDING ON TRANSPORT
+# - WALKING
+
 domino_folder = 'DOMINO'
 merged_files = []
 
-
-# Iterate through all user folders in the DOMINO folder
 for folder in tqdm(os.listdir(domino_folder)):
     folder_path = os.path.join(domino_folder, folder)
 
     if os.path.isdir(folder_path) and folder.startswith('user-'):
-        # Extract the numeric part of the user folder name
         user_id = re.search(r'\d+', folder).group()
 
         activity_labels_path = os.path.join(folder_path, 'activity_labels.csv')
-        acc_path = os.path.join(folder_path, 'smartwatch_acc.csv')
+        accel_path = os.path.join(folder_path, 'smartwatch_acc.csv')
         gyro_path = os.path.join(folder_path, 'smartwatch_gyr.csv')
 
-        if os.path.exists(activity_labels_path):
-            activity_labels = pd.read_csv(activity_labels_path)
-            smartwatch_acc = pd.read_csv(acc_path)
-            smartwatch_gyro = pd.read_csv(gyro_path)
+        activity_labels = pd.read_csv(activity_labels_path)
+        smartwatch_acc = pd.read_csv(accel_path)
+        smartwatch_gyro = pd.read_csv(gyro_path)
 
-            smartwatch_acc.rename(columns={'x': 'accel_x', 'y': 'accel_y', 'z': 'accel_z'}, inplace=True)
-            smartwatch_gyro.rename(columns={'x': 'gyro_x', 'y': 'gyro_y', 'z': 'gyro_z'}, inplace=True)
+        smartwatch_acc.rename(columns={'x': 'accel_x', 'y': 'accel_y', 'z': 'accel_z'}, inplace=True)
+        smartwatch_gyro.rename(columns={'x': 'gyro_x', 'y': 'gyro_y', 'z': 'gyro_z'}, inplace=True)
 
-            smartwatch_acc['key'] = 1
-            activity_labels['key'] = 1
-            cross_joined = pd.merge(smartwatch_acc, activity_labels, on='key').drop('key', axis=1)
+        smartwatch_acc['key'] = 1
+        activity_labels['key'] = 1
+        cross_joined = pd.merge(smartwatch_acc, activity_labels, on='key').drop('key', axis=1)
 
-            # Filter to keep only the rows where ts is within the range [ts_start, ts_end]
-            result = cross_joined[(cross_joined['ts'] >= cross_joined['ts_start']) & (cross_joined['ts'] <= cross_joined['ts_end'])]
+        # Filter to keep only the rows where ts is within the range [ts_start, ts_end]
+        result = cross_joined[(cross_joined['ts'] >= cross_joined['ts_start']) & (cross_joined['ts'] <= cross_joined['ts_end'])]
 
-            merged_data = pd.merge_asof(result, smartwatch_gyro, on='ts', direction='nearest', tolerance=20)
+        merged_data = pd.merge_asof(result, smartwatch_gyro, on='ts', direction='nearest', tolerance=20)
 
-            merged_data['user_id'] = user_id
-            merged_data.rename(columns={'ts': 'timestamp'}, inplace=True)
-            merged_data.rename(columns={'label': 'activity'}, inplace=True)
+        merged_data['user_id'] = user_id
+        merged_data.rename(columns={'ts': 'timestamp'}, inplace=True)
+        merged_data.rename(columns={'label': 'activity'}, inplace=True)
 
-            merged_data = merged_data.drop('ts_start', axis=1)
-            merged_data = merged_data.drop('ts_end', axis=1)
+        merged_data = merged_data.drop('ts_start', axis=1)
+        merged_data = merged_data.drop('ts_end', axis=1)
 
-            merged_file_path = os.path.join(domino_folder, f'merged_user_{user_id}.csv')
-            merged_data.to_csv(merged_file_path, index=False)
-            print(f"Saved merged data for user {user_id} to {merged_file_path}")
+        merged_file_path = os.path.join(domino_folder, f'merged_data_user_{user_id}.csv')
+        merged_data.to_csv(merged_file_path, index=False)
+        print(f"Saved merged data for user {user_id} to {merged_file_path}")
 
-            merged_files.append(merged_file_path)
+        merged_files.append(merged_file_path)
 
-# Step 4: Combine all individual merged files into one final CSV file
-if merged_files:
-    all_data = []
-
-    for file in merged_files:
-        df = pd.read_csv(file)
-        all_data.append(df)
-
-    if all_data:
-        combined_df = pd.concat(all_data, ignore_index=True)
-
-        # Check and remove Nan values
-        missing_values = combined_df.isnull().sum()
-        print("Missing values in each column:\n", missing_values)
-        combined_df_cleaned = combined_df.dropna()
-        print("Original DataFrame shape:", combined_df.shape)
-        print("Cleaned DataFrame shape:", combined_df_cleaned.shape)
-
-        combined_df_cleaned = combined_df_cleaned[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
-        combined_file_path = os.path.join(domino_folder, 'data_domino.csv')
-        combined_df_cleaned.to_csv('data_domino.csv', index=False)
-        print(f"Saved final combined data to {combined_file_path}")
-
-    else:
-        print("No dataframes found to concatenate.")
-
-else:
+# Combine all individual merged files into one final CSV file
+if not merged_files:
     print("No merged files found.")
+all_data = []
+
+for file in merged_files:
+    df = pd.read_csv(file)
+    all_data.append(df)
+
+combined_df = pd.concat(all_data, ignore_index=True)
+
+missing_values = combined_df.isnull().sum()
+print("Missing values in each column:\n", missing_values)
+combined_df = combined_df.dropna()
+
+combined_df = combined_df[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
+print(f"Created combined data df")
+
+# remove activities
+desired_activities = ['CYCLING', 'LYING', 'RUNNING', 'SITTING', 'SITTING_ON_TRANSPORT', 'STAIRS_DOWN', 'STAIRS_UP', 'STANDING', 'STANDING_ON_TRANSPORT', 'WALKING']
+combined_df = combined_df[combined_df['activity'].isin(desired_activities)]
+
+# rename and merge activities
+activity_mapping = {
+    'CYCLING': 'cycling', 'LYING': 'lying', 'RUNNING': 'running', 'SITTING': 'sitting', 'SITTING_ON_TRANSPORT': 'sitting',
+    'STAIRS_DOWN': 'walking', 'STAIRS_UP': 'walking', 'STANDING': 'standing', 'STANDING_ON_TRANSPORT': 'standing', 'WALKING': 'walking'}
+combined_df['activity'] = combined_df['activity'].replace(activity_mapping)
+print('Activity values before downsampling \n', combined_df['activity'].value_counts())
+
+# Downsample 100Hz -> 25Hz
+downsampled_rows = []
+step = 4
+
+for i in range(0, len(combined_df), step):
+    group = combined_df.iloc[i:i + step]
+
+    aggregated_row = {
+        'timestamp': group['timestamp'].iloc[0],
+        'activity': group['activity'].iloc[0],
+        'user_id': group['user_id'].iloc[0],
+        'accel_x': group['accel_x'].mean(),
+        'accel_y': group['accel_y'].mean(),
+        'accel_z': group['accel_z'].mean(),
+        'gyro_x': group['gyro_x'].mean(),
+        'gyro_y': group['gyro_y'].mean(),
+        'gyro_z': group['gyro_z'].mean(),
+    }
+    downsampled_rows.append(aggregated_row)
+
+downsampled_df = pd.DataFrame(downsampled_rows)
+downsampled_df['user_id'] = downsampled_df['user_id'].astype(str) + 'D'
+
+columns_to_round = ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
+for column in columns_to_round:
+    downsampled_df[column] = downsampled_df[column].apply(lambda x: round(x, 3))
+print('Activity values after downsampling \n', downsampled_df['activity'].value_counts())
+
+print('Final data \n', downsampled_df.head())
+print(f"Final size of dataframe: {len(downsampled_df)}")
+downsampled_df.to_csv('final_domino.csv', index=False)
