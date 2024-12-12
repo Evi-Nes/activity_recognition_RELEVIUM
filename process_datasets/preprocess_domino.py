@@ -3,6 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 import re
 
+##### The DOMINO dataset #####
 # 100Hz frequency, folder per user, different files for accel, gyro and activity labels
 # Overall DOMINO includes data about a TRANSITION activity + 14 activities:
 # - BRUSHING TEETH
@@ -78,7 +79,7 @@ print("Missing values in each column:\n", missing_values)
 combined_df = combined_df.dropna()
 
 combined_df = combined_df[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
-print(f"Created combined data df")
+print("Combined all data")
 
 # remove activities
 desired_activities = ['CYCLING', 'LYING', 'RUNNING', 'SITTING', 'SITTING_ON_TRANSPORT', 'STAIRS_DOWN', 'STAIRS_UP', 'STANDING', 'STANDING_ON_TRANSPORT', 'WALKING']
@@ -89,7 +90,7 @@ activity_mapping = {
     'CYCLING': 'cycling', 'LYING': 'lying', 'RUNNING': 'running', 'SITTING': 'sitting', 'SITTING_ON_TRANSPORT': 'sitting',
     'STAIRS_DOWN': 'walking', 'STAIRS_UP': 'walking', 'STANDING': 'standing', 'STANDING_ON_TRANSPORT': 'standing', 'WALKING': 'walking'}
 combined_df['activity'] = combined_df['activity'].replace(activity_mapping)
-print('Activity values before downsampling \n', combined_df['activity'].value_counts())
+print('Activity values before down sampling \n', combined_df['activity'].value_counts())
 
 # Downsample 100Hz -> 25Hz
 downsampled_rows = []
@@ -117,7 +118,7 @@ downsampled_df['user_id'] = downsampled_df['user_id'].astype(str) + 'D'
 columns_to_round = ['accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']
 for column in columns_to_round:
     downsampled_df[column] = downsampled_df[column].apply(lambda x: round(x, 3))
-print('Activity values after downsampling \n', downsampled_df['activity'].value_counts())
+print('Activity values after down sampling \n', downsampled_df['activity'].value_counts())
 
 print('Final data \n', downsampled_df.head())
 print(f"Final size of dataframe: {len(downsampled_df)}")
