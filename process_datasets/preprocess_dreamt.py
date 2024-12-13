@@ -5,6 +5,8 @@ import numpy as np
 main_folder = 'dreamt-dataset-for-real-time-sleep-stage-estimation-using-multisensor-wearable-technology-1.0.1/data'
 desired_stages = ['W', 'N1', 'N2', 'N3', 'R']
 merged_files = []
+numeric_cols = ['accel_x', 'accel_y', 'accel_z']
+categorical_cols = ['user_id', 'activity']
 
 for filename in os.listdir(main_folder):
     user_id = filename.replace('S0', '').replace('_whole_df.csv', '')
@@ -18,10 +20,8 @@ for filename in os.listdir(main_folder):
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
     df = df[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
 
-    numeric_cols = ['accel_x', 'accel_y', 'accel_z']
-    categorical_cols = ['user_id', 'activity']
+    # Timestamp at 64Hz, accelerometer at 32Hz
     print(df['activity'].value_counts())
-
     df = df.iloc[::2].reset_index(drop=True)
     df = df.set_index('timestamp')
     print(df['activity'].value_counts())
@@ -32,12 +32,9 @@ for filename in os.listdir(main_folder):
     categorical_resampled = df[categorical_cols].resample('40ms').ffill()
 
     data_resampled = pd.concat([numeric_resampled, categorical_resampled], axis=1)
-    data_resampled = data_resampled.fillna(method='ffill').fillna(method='bfill')
-
-    # print(data_resampled)
+    data_resampled = data_resampled.ffill()
 
     original_timestamps = df.index
-
     mask = ~data_resampled.index.isin(original_timestamps)
     data_resampled_filtered = data_resampled[mask]
 
@@ -45,15 +42,14 @@ for filename in os.listdir(main_folder):
     data_resampled_filtered.dropna(inplace=True)
     data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     print(data_resampled_filtered)
-    print(data_resampled_filtered['activity'].value_counts())
 
     merged_files.append(data_resampled_filtered)
     print(f'Merged {filename}')
 
 
 combined_df = pd.concat(merged_files, ignore_index=True)
+print('Activity values after down sampling \n', combined_df['activity'].value_counts())
+print('Final data \n', combined_df.head())
+print(f"Final size of dataframe: {len(combined_df)}")
 combined_df.to_csv('final_dreamt.csv', index=False)
-
-
-
 
