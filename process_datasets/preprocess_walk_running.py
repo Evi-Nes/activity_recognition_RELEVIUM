@@ -65,6 +65,9 @@ missing_values = downsampled_df.isnull().sum()
 print("Missing values in each column:\n", missing_values)
 downsampled_df_cleaned = downsampled_df.dropna()
 
+for column in columns_to_round:
+    downsampled_df_cleaned[column] = downsampled_df_cleaned[column].apply(lambda x: round(x, 3))
+
 downsampled_df_cleaned = downsampled_df_cleaned[['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
 downsampled_df_cleaned.to_csv('final_walking_running.csv', index=False)
 
