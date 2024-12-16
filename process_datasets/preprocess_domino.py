@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import re
@@ -99,52 +98,37 @@ print('Activity values before down sampling \n', combined_df['activity'].value_c
 for column in numeric_cols:
     combined_df[column] = combined_df[column].apply(lambda x: round(x, 3))
 
-reduction_factor = 5
-# Create a mask to drop rows in approximately 5.6 steps
-indices = np.arange(len(combined_df))
-mask = (indices % round(reduction_factor)) == 0
-downsampled_data = combined_df[mask]
+# reduction_factor = 5
+# # Create a mask to drop rows in approximately 5.6 steps
+# indices = np.arange(len(combined_df))
+# mask = (indices % round(reduction_factor)) == 0
+# downsampled_data = combined_df[mask]
 
-# # Downsample 140Hz -> 28Hz
-# downsampled_rows = []
-# step = 4
-#
-# for i in range(0, len(combined_df), step):
-#     group = combined_df.iloc[i:i + step]
-#
-#     aggregated_row = {
-#         'timestamp': group['timestamp'].iloc[0],
-#         'activity': group['activity'].iloc[0],
-#         'user_id': group['user_id'].iloc[0],
-#         'accel_x': group['accel_x'].mean(),
-#         'accel_y': group['accel_y'].mean(),
-#         'accel_z': group['accel_z'].mean(),
-#         'gyro_x': group['gyro_x'].mean(),
-#         'gyro_y': group['gyro_y'].mean(),
-#         'gyro_z': group['gyro_z'].mean(),
-#     }
-#     downsampled_rows.append(aggregated_row)
-#
-# downsampled_df = pd.DataFrame(downsampled_rows)
-# print('First down sampling completed')
-#
-# downsampled_df.to_csv('data_domino.csv', index=False)
-# # Downsample 28Hz -> 25Hz
-# downsampled_df['timestamp'] = pd.to_datetime(downsampled_df['timestamp'], unit='ms')
-# downsampled_df = downsampled_df.set_index('timestamp')
-# print(downsampled_df)
-#
-# numeric_resampled = downsampled_df[numeric_cols].resample('40ms').apply(
-#     lambda x: np.nan if x.empty else x.interpolate(method='linear', limit_direction='both'))
-# categorical_resampled = downsampled_df[categorical_cols].resample('40ms').ffill()
-#
-# merged_data_resampled = pd.concat([numeric_resampled, categorical_resampled], axis=1).reset_index()
-# merged_data_resampled = merged_data_resampled.ffill()
-downsampled_data = downsampled_data[
+# Downsample 140Hz -> 28Hz
+downsampled_rows = []
+step = 5
+
+for i in range(0, len(combined_df), step):
+    group = combined_df.iloc[i:i + step]
+
+    aggregated_row = {
+        'timestamp': group['timestamp'].iloc[0],
+        'activity': group['activity'].iloc[0],
+        'user_id': group['user_id'].iloc[0],
+        'accel_x': group['accel_x'].mean(),
+        'accel_y': group['accel_y'].mean(),
+        'accel_z': group['accel_z'].mean(),
+        'gyro_x': group['gyro_x'].mean(),
+        'gyro_y': group['gyro_y'].mean(),
+        'gyro_z': group['gyro_z'].mean(),
+    }
+    downsampled_rows.append(aggregated_row)
+
+downsampled_df = pd.DataFrame(downsampled_rows)
+downsampled_df = downsampled_df[
     ['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
-print(downsampled_data.head)
 
-print('Activity values after down sampling \n', downsampled_data['activity'].value_counts())
-print('Final data \n', downsampled_data.head())
-print(f"Final size of dataframe: {len(downsampled_data)}")
-downsampled_data.to_csv('final_domino.csv', index=False)
+print('Activity values after down sampling \n', downsampled_df['activity'].value_counts())
+print('Final data \n', downsampled_df.head())
+print(f"Final size of dataframe: {len(downsampled_df)}")
+downsampled_df.to_csv('final_domino.csv', index=False)
