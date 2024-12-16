@@ -19,3 +19,5 @@ a_s_RELE*
 /process_datasets/multilevel-monitoring-of-activity-and-sleep-in-healthy-people-1.0.0
 /process_datasets/single_activity_walk_running_data_csv
 /process_datasets/static_exercising
+/process_datasets/single_activity_dynamic_exercising
+process_datasets/single_activity_static_exercising
