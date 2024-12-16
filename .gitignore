@@ -10,6 +10,7 @@
 **.arff
 /.venv
 /.idea
+**.out
 a_s_RELE*
 /process_datasets/DOMINO
 /process_datasets/PAMAP2_Dataset
