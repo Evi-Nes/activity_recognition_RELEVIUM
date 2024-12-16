@@ -6,22 +6,19 @@ main_folder = 'dreamt-dataset-for-real-time-sleep-stage-estimation-using-multise
 desired_stages = ['W', 'N1', 'N2', 'N3', 'R']
 merged_files = []
 numeric_cols = ['accel_x', 'accel_y', 'accel_z']
-categorical_cols = ['user_id', 'activity']
+categorical_cols = ['user_id', 'activity', 'hr']
 
 for filename in os.listdir(main_folder):
     user_id = filename.replace('S0', '').replace('_whole_df.csv', '')
     df = pd.read_csv(os.path.join(main_folder, filename))
     df = df[df['Sleep_Stage'].isin(desired_stages)]
-    df.rename(columns={'TIMESTAMP': 'timestamp', 'ACC_X': 'accel_x', 'ACC_Y': 'accel_y', 'ACC_Z': 'accel_z', 'Sleep_Stage': 'activity'}, inplace=True)
-    mapping = {'W': 'lying', 'N1': 'sleeping', 'N2': 'sleeping', 'N3': 'sleeping', 'R': 'sleeping'}
+    df.rename(columns={'TIMESTAMP': 'timestamp', 'ACC_X': 'accel_x', 'ACC_Y': 'accel_y', 'ACC_Z': 'accel_z', 'HR': 'hr', 'Sleep_Stage': 'activity'}, inplace=True)
 
-    df['activity'] = df['activity'].replace(mapping)
     df['user_id'] = user_id + 'DR'
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
-    df = df[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+    df = df[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
 
     # Timestamp at 64Hz, accelerometer at 32Hz
-    print(df['activity'].value_counts())
     df = df.iloc[::2].reset_index(drop=True)
     df = df.set_index('timestamp')
     print(df['activity'].value_counts())
@@ -40,7 +37,13 @@ for filename in os.listdir(main_folder):
 
     data_resampled_filtered.reset_index(inplace=True)
     data_resampled_filtered.dropna(inplace=True)
-    data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+    data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
+
+    new_desired_stages = ['W', 'N1', 'N2', 'R']
+    data_resampled_filtered = data_resampled_filtered[data_resampled_filtered['activity'].isin(new_desired_stages)]
+
+    mapping = {'W': 'lying', 'N1': 'sleeping', 'N2': 'sleeping', 'R': 'sleeping'}
+    data_resampled_filtered['activity'] = data_resampled_filtered['activity'].replace(mapping)
     print(data_resampled_filtered)
 
     merged_files.append(data_resampled_filtered)
