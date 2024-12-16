@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 import keras
 import os
 import contextlib
-# import pickle
-# import tsfel
 import tensorflow as tf
 
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
@@ -67,12 +65,10 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
 
 def train_test_split(path, timesteps):
     """
-    This function splits the data to train-test sets. After reading the csv file, it maps the activities to numbers,
-    removes some undesired activities, sets the frequency of the data to 25 Hz and creates the train and test sets.
+    This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
     :return: train_data, test_data, unique_activities
     """
     data = pd.read_csv(path)
-    # data = data.dropna()
 
     columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
     scaler = RobustScaler()
@@ -82,8 +78,6 @@ def train_test_split(path, timesteps):
     data = data.dropna()
 
     unique_activities = data['activity'].unique()
-    # unique_activities = unique_activities[:8]
-    # unique_activities = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
     # uncomment this if you want to plot the data as timeseries
     # display_data(data, unique_activities)
     data_seq, activities_seq = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
@@ -93,13 +87,10 @@ def train_test_split(path, timesteps):
     shuffled_indices = original_indices.copy()
     np.random.shuffle(shuffled_indices)
 
-    # random = np.arange(0, len(activities_seq))
-    # np.random.shuffle(random)
     data_seq = data_seq[shuffled_indices]
     activities_seq = activities_seq[shuffled_indices]
 
     size = len(activities_seq)
-    train_indices = shuffled_indices[:int(size * 0.8)]
     test_indices = shuffled_indices[int(size * 0.8):]
 
     X_train = data_seq[:int(size * 0.8)]
@@ -115,52 +106,12 @@ def train_test_split(path, timesteps):
         print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
         print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
 
-    # unique, counts = np.unique(y_test, return_counts=True)
-    # label_distribution = pd.DataFrame({'Label': unique, 'Support': counts})
-    # print(label_distribution)
-
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder = hot_encoder.fit(y_train)
     y_train = hot_encoder.transform(y_train)
     y_test_restored = hot_encoder.transform(y_test_restored)
 
-
     return X_train, y_train, X_test_restored, y_test_restored, unique_activities
-
-
-
-def preprocess_data(train_data, test_data, timesteps, unique_activities):
-    """
-    This function pre-processes the data. It uses the create_sequences function to create small timeseries and encodes
-    the data using OneHotEncoder.
-    :returns: the preprocessed data that can be used by the models (X_train, y_train, X_test, y_test)
-    """
-    X_train, y_train = create_sequences(train_data[['accel_x', 'accel_y', 'accel_z']], train_data['activity'],
-                                        timesteps, unique_activities)
-    X_test, y_test = create_sequences(test_data[['accel_x', 'accel_y', 'accel_z']], test_data['activity'],
-                                      timesteps, unique_activities)
-
-    np.random.seed(42)
-    random = np.arange(0, len(y_train))
-    np.random.shuffle(random)
-    X_train = X_train[random]
-    y_train = y_train[random]
-
-    # random = np.arange(0, len(y_test))
-    # np.random.shuffle(random)
-    # X_test = X_test[random]
-    # y_test = y_test[random]
-
-    for activity in unique_activities:
-        print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
-        print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
-
-    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_train)
-    y_train = hot_encoder.transform(y_train)
-    y_test = hot_encoder.transform(y_test)
-
-    return X_train, y_train, X_test, y_test
 
 
 def display_data(data, unique_activities):
@@ -254,23 +205,26 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     return model
 
 
-def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class_labels, time_required_ms, train_model):
+def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename, train_model):
     """
     This function is used to train the sequential models. If train_model == True, then it trains the model using
     X-train, y_train, else it loads the model from the existing file. Then, it evaluates the model and prints the
     classification report.
     :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
     """
-    if not os.path.exists(f'saved_models8_{time_required_ms}'):
-        os.makedirs(f'saved_models8_{time_required_ms}')
+    if not os.path.exists(f'saved_models_{filename}'):
+        os.makedirs(f'saved_models_{filename}')
 
-    file_name = f'saved_models8_{time_required_ms}/acc_{chosen_model}_model.h5'
+    file_name = f'saved_models_{filename}/acc_{chosen_model}_model.h5'
 
     if train_model:
         input_shape = (X_train.shape[1], X_train.shape[2])
         model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
     else:
         model = keras.models.load_model(file_name)
+
+    loss, accuracy = model.evaluate(X_train, y_train)
+    print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
 
     probabilities = model.predict(X_test)
 
@@ -295,8 +249,10 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
             smoothed_predictions.append(smoothed_predictions[-1] if smoothed_predictions else 5)
 
     # Calculate accuracy and other metrics
-    print("Accuracy with initial predictions: ", accuracy_score(y_test_labels, y_pred_labels))
-    print("Accuracy with smoothed predictions: ", accuracy_score(y_test_labels, smoothed_predictions))
+    print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
+    print("F1 score with initial predictions :", round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
+    print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
+    print("F1 score with smoothed predictions: ", round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
     print("\nClassification Report for initial predictions: :")
     print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
     print("\nClassification Report for smoothed predictions: :")
@@ -305,72 +261,37 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     activity_predictions_true = np.empty(len(y_test_labels), dtype=object)
     for i in range(0, len(y_test_labels)):
         activity_predictions_true[i] = class_labels[y_test_labels[i]]
-    # print(activity_predictions_true)
 
     activity_predictions = np.empty(len(y_pred_labels), dtype=object)
     for i in range(0, len(y_pred_labels)):
         activity_predictions[i] = class_labels[y_pred_labels[i]]
-    # print(activity_predictions)
 
-    # smoothed_predictions = np.argmax(smoothed_probs, axis=1)
     activity_predictions_smoothed = np.empty(len(smoothed_predictions), dtype=object)
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
-    # print(activity_predictions_smoothed)
-
-    # format = 'd'
-    # plot_name = f'acc_{chosen_model}_smooth_cm.png'
-    #
-    # disp = ConfusionMatrixDisplay.from_predictions(
-    #     y_test_labels, smoothed_predictions,
-    #     display_labels=class_labels,
-    #     normalize=None,
-    #     xticks_rotation=70,
-    #     values_format=format,
-    #     cmap=plt.cm.Blues
-    # )
-    #
-    # plt.figure(figsize=(8, 10))
-    # plt.title(f'Confusion Matrix for {chosen_model}')
-    # disp.plot(cmap=plt.cm.Blues, values_format=format)
-    # plt.xticks(rotation=70)
-    # plt.tight_layout()
-    # plt.savefig(f'plots4_8000/{plot_name}', bbox_inches='tight', pad_inches=0.1)
-
-    # loss, accuracy = model.evaluate(X_train, y_train)
-    # print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
-    #
-    # y_pred = model.predict(X_test)
-    # y_pred_labels = np.argmax(y_pred, axis=1)
-    # y_test_labels = np.argmax(y_test, axis=1)
-    # accuracy = accuracy_score(y_test_labels, y_pred_labels)
-    # f1 = f1_score(y_test_labels, y_pred_labels, average='weighted')
-    # print("Test Accuracy: %d%%" % (100 * accuracy))
-    # print("Test F1 Score: %d%%" % (100 * f1))
-    #
-    # report = classification_report(y_test_labels, y_pred_labels, target_names=class_labels)
-    # print(report)
-
-    return y_test_labels, y_pred_labels
 
 
-def plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model, time_required_ms):
+    return y_test_labels, y_pred_labels, smoothed_predictions
+
+
+def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
     """
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
     and y_pred_labels parameters, it creates and saves the confusion matrix.
     """
-    path = f'plots8_{time_required_ms}'
+    path = f'plots_{filename}'
     if not os.path.exists(path):
         os.makedirs(path)
 
-    normalize_cm = [None, 'true']
+    # Initial Values
+    normalize_cm = [None]
     for norm_value in normalize_cm:
         if norm_value == 'true':
             format = '.2f'
-            plot_name = f'acc_{chosen_model}_cm_norm.png'
+            plot_name = f'acc_{chosen_model}_cm_norm_inital.png'
         else:
             format = 'd'
-            plot_name = f'acc_{chosen_model}_cm.png'
+            plot_name = f'acc_{chosen_model}_cm_initial.png'
 
         disp = ConfusionMatrixDisplay.from_predictions(
             y_test_labels, y_pred_labels,
@@ -387,7 +308,31 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_mod
         plt.xticks(rotation=70)
         plt.tight_layout()
         plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
-        # plt.show()
+
+    # Smoothed Values
+    for norm_value in normalize_cm:
+        if norm_value == 'true':
+            format = '.2f'
+            plot_name = f'acc_{chosen_model}_cm_norm_smooth.png'
+        else:
+            format = 'd'
+            plot_name = f'acc_{chosen_model}_cm_smooth.png'
+
+        disp = ConfusionMatrixDisplay.from_predictions(
+            y_test_labels, smoothed_predictions,
+            display_labels=class_labels,
+            normalize=norm_value,
+            xticks_rotation=70,
+            values_format=format,
+            cmap=plt.cm.Blues
+        )
+
+        plt.figure(figsize=(8, 10))
+        plt.title(f'Confusion Matrix for {chosen_model}')
+        disp.plot(cmap=plt.cm.Blues, values_format=format)
+        plt.xticks(rotation=70)
+        plt.tight_layout()
+        plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
 
 
 if __name__ == '__main__':
@@ -396,21 +341,20 @@ if __name__ == '__main__':
     samples_required = int(time_required_ms * frequency / 1000)
 
     path = "combined_dataset7.csv"
-    # class_labels = ['walking', 'running', 'cycling', 'standing', 'sitting', 'lying']
-    #class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking', 'sleeping']
+    filename = f"{time_required_ms}_9_classes"
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
+    
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(path)
 
     # Implemented models
     models = ['gru_2']
-#    models = ['gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    # models = ['gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
     X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required)
-    # X_train, y_train, X_test, y_test = preprocess_data(train_set, test_set, samples_required, unique_activities)
 
     for chosen_model in models:
         print(f'{chosen_model=}')
-        y_test_labels, y_pred_labels = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
-                                                              class_labels, time_required_ms, train_model=False)
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
+                                                              class_labels, filename, train_model=False)
 
-        plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model, time_required_ms)
+        plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
