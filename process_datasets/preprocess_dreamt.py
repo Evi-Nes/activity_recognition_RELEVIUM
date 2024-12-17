@@ -39,14 +39,21 @@ for filename in os.listdir(main_folder):
     data_resampled_filtered.dropna(inplace=True)
     data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
 
-    new_desired_stages = ['W', 'N1', 'N2', 'R']
-    data_resampled_filtered = data_resampled_filtered[data_resampled_filtered['activity'].isin(new_desired_stages)]
+    # new_desired_stages = ['W', 'N1', 'N2', 'R']
+    # data_resampled_filtered = data_resampled_filtered[data_resampled_filtered['activity'].isin(new_desired_stages)]
+    #
+    # mapping = {'W': 'lying', 'N1': 'sleeping', 'N2': 'sleeping', 'R': 'sleeping'}
+    # data_resampled_filtered['activity'] = data_resampled_filtered['activity'].replace(mapping)
+    # print(data_resampled_filtered)
 
-    mapping = {'W': 'lying', 'N1': 'sleeping', 'N2': 'sleeping', 'R': 'sleeping'}
-    data_resampled_filtered['activity'] = data_resampled_filtered['activity'].replace(mapping)
-    print(data_resampled_filtered)
+    lying_data = data_resampled_filtered[data_resampled_filtered['activity'] == 'lying']
+    sleeping_data = data_resampled_filtered[data_resampled_filtered['activity'].isin(['N1', 'N2', 'N3', 'R'])]
+    retain_fraction = 0.6
+    downsampled_sleeping = (sleeping_data.groupby('activity', group_keys=False)
+                            .apply(lambda x: x.sample(frac=retain_fraction, random_state=42)))
+    reduced_data = pd.concat([lying_data, downsampled_sleeping])
 
-    merged_files.append(data_resampled_filtered)
+    merged_files.append(reduced_data)
     print(f'Merged {filename}')
 
 
