@@ -340,8 +340,8 @@ if __name__ == '__main__':
     time_required_ms = 8000
     samples_required = int(time_required_ms * frequency / 1000)
 
-    path = "combined_dataset.csv"
-    filename = f"{time_required_ms}_9_classes"
+    path = "../process_datasets/combined_dataset_8_classes.csv"
+    filename = f"{time_required_ms}_8_classes"
     # class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
 
@@ -356,6 +356,6 @@ if __name__ == '__main__':
     for chosen_model in models:
         print(f'{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
-                                                              class_labels, filename, train_model=False)
+                                                                class_labels, filename, train_model=True)
 
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
