@@ -13,4 +13,4 @@ print(combined_df.head())
 
 print(combined_df['activity'].value_counts())
 
-combined_df.to_csv('combined_dataset7.csv', index=False)
+combined_df.to_csv('combined_dataset.csv', index=False)

@@ -340,10 +340,11 @@ if __name__ == '__main__':
     time_required_ms = 8000
     samples_required = int(time_required_ms * frequency / 1000)
 
-    path = "combined_dataset7.csv"
+    path = "combined_dataset.csv"
     filename = f"{time_required_ms}_9_classes"
-    class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
-    
+    # class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
+    class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
+
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(path)
 
