@@ -17,6 +17,7 @@ from sklearn import preprocessing
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 
+np.set_printoptions(threshold=np.inf)
 
 def create_sequences(X_data, Y_data, timesteps, unique_activities):
     """
@@ -50,7 +51,24 @@ def train_test_split(path, timesteps):
     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
     data = data.dropna()
 
+    # remove after new DREAMT data
+    lying_data = data[data['activity'] == 'lying']
+    sleeping_data = data[data['activity'] == 'sleeping']
+    sleeping_data = sleeping_data[:int(len(data) * 0.6)]
+    data = pd.concat([lying_data, sleeping_data])
+
     unique_activities = data['activity'].unique()
+
+    if not os.path.exists('plots'):
+        os.makedirs('plots')
+
+    for activity in unique_activities:
+        subset = data[data['activity'] == activity].iloc[4000:4200]
+        subset = subset.drop(['activity'], axis=1)
+
+        subset.plot(subplots=True, figsize=(10, 10))
+        plt.xlabel('Time')
+        plt.savefig(f'plots/scaled_{activity}_data.png')
 
     data_seq, activities_seq = create_sequences(data[['accel_x', 'accel_y', 'accel_z', 'hr']], data['activity'], timesteps, unique_activities)
 
@@ -58,7 +76,7 @@ def train_test_split(path, timesteps):
     original_indices = np.arange(len(activities_seq))
     shuffled_indices = original_indices.copy()
     np.random.shuffle(shuffled_indices)
-
+    
     data_seq = data_seq[shuffled_indices]
     activities_seq = activities_seq[shuffled_indices]
 
@@ -184,7 +202,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
 
     probabilities = model.predict(X_test)
 
-    window_size = 3
+    window_size = 6
     threshold = 0.8
     y_test_labels = np.argmax(y_test, axis=1)
     y_pred_labels = np.argmax(probabilities, axis=1)
@@ -202,7 +220,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
             smoothed_predictions.append(np.argmax(probs))
         else:
             # If below threshold, retain previous prediction or mark as uncertain (-1)
-            smoothed_predictions.append(smoothed_predictions[-1] if smoothed_predictions else 5)
+            smoothed_predictions.append(smoothed_predictions[-1] if smoothed_predictions else 0)
 
     # Calculate accuracy and other metrics
     print("#### Sleeping-Lying ####")
@@ -227,6 +245,8 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
 
+    print(activity_predictions_true)
+    print(activity_predictions_smoothed)
 
     return y_test_labels, y_pred_labels, smoothed_predictions
 
@@ -296,7 +316,8 @@ if __name__ == '__main__':
     frequency = 25
     time_required_ms = 8000
     samples_required = int(time_required_ms * frequency / 1000)
-
+    print('Timesteps per timeseries: ', time_required_ms)
+    
     path = "../process_datasets/combined_dataset.csv"
     filename = f"{time_required_ms}_8_classes"
     class_labels = ['lying', 'sleeping']
