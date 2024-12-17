@@ -9,6 +9,9 @@ numeric_cols = ['accel_x', 'accel_y', 'accel_z']
 categorical_cols = ['user_id', 'activity', 'hr']
 
 for filename in os.listdir(main_folder):
+    if not filename.endswith('_whole_df.csv'):
+        continue
+    print(filename)
     user_id = filename.replace('S0', '').replace('_whole_df.csv', '')
     df = pd.read_csv(os.path.join(main_folder, filename))
     df = df[df['Sleep_Stage'].isin(desired_stages)]
@@ -39,20 +42,15 @@ for filename in os.listdir(main_folder):
     data_resampled_filtered.dropna(inplace=True)
     data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
 
-    # new_desired_stages = ['W', 'N1', 'N2', 'R']
-    # data_resampled_filtered = data_resampled_filtered[data_resampled_filtered['activity'].isin(new_desired_stages)]
-    #
-    # mapping = {'W': 'lying', 'N1': 'sleeping', 'N2': 'sleeping', 'R': 'sleeping'}
-    # data_resampled_filtered['activity'] = data_resampled_filtered['activity'].replace(mapping)
-    # print(data_resampled_filtered)
-
     lying_data = data_resampled_filtered[data_resampled_filtered['activity'] == 'lying']
     sleeping_data = data_resampled_filtered[data_resampled_filtered['activity'].isin(['N1', 'N2', 'N3', 'R'])]
-    retain_fraction = 0.6
+
+    retain_fraction = 0.6  #keep those
     downsampled_sleeping = (sleeping_data.groupby('activity', group_keys=False)
                             .apply(lambda x: x.sample(frac=retain_fraction, random_state=42)))
     reduced_data = pd.concat([lying_data, downsampled_sleeping])
 
+    reduced_data.to_csv(os.path.join(main_folder, filename.replace('_whole_df.csv', '_processed.csv')))
     merged_files.append(reduced_data)
     print(f'Merged {filename}')
 
