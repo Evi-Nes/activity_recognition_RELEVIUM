@@ -23,7 +23,9 @@ for filename in os.listdir(main_folder):
     # Timestamp at 64Hz, accelerometer at 32Hz
     df = df.iloc[::2].reset_index(drop=True)
     df = df.set_index('timestamp')
-    print(df['activity'].value_counts())
+    # print('Initial data', df['activity'].value_counts())
+    # print(df.head())
+    df.to_csv(os.path.join(main_folder, filename.replace('_whole_df.csv', '_processed_32Hz.csv')))
 
     # Resample numeric columns and interpolate
     numeric_resampled = df[numeric_cols].resample('40ms').apply(
@@ -40,6 +42,8 @@ for filename in os.listdir(main_folder):
     data_resampled_filtered.reset_index(inplace=True)
     data_resampled_filtered.dropna(inplace=True)
     data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
+    print('Resampled data filtered', data_resampled_filtered['activity'].value_counts())
+    print(data_resampled_filtered.head())
 
     lying_data = data_resampled_filtered[data_resampled_filtered['activity'] == 'W']
     sleeping_data = data_resampled_filtered[data_resampled_filtered['activity'].isin(['N1', 'N2', 'N3', 'R'])]
@@ -48,14 +52,15 @@ for filename in os.listdir(main_folder):
     downsampled_sleeping = (sleeping_data.groupby('activity', group_keys=False)
                             .apply(lambda x: x.sample(frac=retain_fraction, random_state=42)))
     reduced_data = pd.concat([lying_data, downsampled_sleeping])
-    print(reduced_data['activity'].value_counts())
+    print('Reduced data', reduced_data['activity'].value_counts())
 
-    reduced_data.to_csv(os.path.join(main_folder, filename.replace('_whole_df.csv', '_processed.csv')))
+    reduced_data.to_csv(os.path.join(main_folder, filename.replace('_whole_df.csv', '_processed_25Hz.csv')))
     print(f'Merged {filename}')
 
+# Combine 25Hz data with classes N1, N2, N3, R, W
 all_data = []
 for filename in os.listdir(main_folder):
-    if not filename.endswith('_processed.csv'):
+    if not filename.endswith('_processed_25Hz.csv'):
         continue
     data = pd.read_csv(os.path.join(main_folder, filename))
     all_data.append(data)
@@ -69,5 +74,24 @@ combined_df = combined_df.dropna()
 print('Activity values after down sampling \n', combined_df['activity'].value_counts())
 print('Final data \n', combined_df.head())
 print(f"Final size of dataframe: {len(combined_df)}")
-combined_df.to_csv('final_dreamt.csv', index=False)
+combined_df.to_csv('combined_dreamt_25Hz.csv', index=False)
 
+
+# Combine 32Hz data with classes N1, N2, N3, R, W
+all_data = []
+for filename in os.listdir(main_folder):
+    if not filename.endswith('_processed_32Hz.csv'):
+        continue
+    data = pd.read_csv(os.path.join(main_folder, filename))
+    all_data.append(data)
+
+combined_df = pd.concat(all_data, ignore_index=True)
+
+missing_values = combined_df.isnull().sum()
+print("Missing values in each column:\n", missing_values)
+combined_df = combined_df.dropna()
+
+print('Activity values after down sampling \n', combined_df['activity'].value_counts())
+print('Final data \n', combined_df.head())
+print(f"Final size of dataframe: {len(combined_df)}")
+combined_df.to_csv('combined_dreamt_32Hz.csv', index=False)
