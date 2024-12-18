@@ -4,7 +4,6 @@ import numpy as np
 
 main_folder = 'dreamt-dataset-for-real-time-sleep-stage-estimation-using-multisensor-wearable-technology-1.0.1/data'
 desired_stages = ['W', 'N1', 'N2', 'N3', 'R']
-merged_files = []
 numeric_cols = ['accel_x', 'accel_y', 'accel_z']
 categorical_cols = ['user_id', 'activity', 'hr']
 
@@ -42,20 +41,31 @@ for filename in os.listdir(main_folder):
     data_resampled_filtered.dropna(inplace=True)
     data_resampled_filtered = data_resampled_filtered[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
 
-    lying_data = data_resampled_filtered[data_resampled_filtered['activity'] == 'lying']
+    lying_data = data_resampled_filtered[data_resampled_filtered['activity'] == 'W']
     sleeping_data = data_resampled_filtered[data_resampled_filtered['activity'].isin(['N1', 'N2', 'N3', 'R'])]
 
-    retain_fraction = 0.6  #keep those
+    retain_fraction = 0.7  #keep those
     downsampled_sleeping = (sleeping_data.groupby('activity', group_keys=False)
                             .apply(lambda x: x.sample(frac=retain_fraction, random_state=42)))
     reduced_data = pd.concat([lying_data, downsampled_sleeping])
+    print(reduced_data['activity'].value_counts())
 
     reduced_data.to_csv(os.path.join(main_folder, filename.replace('_whole_df.csv', '_processed.csv')))
-    merged_files.append(reduced_data)
     print(f'Merged {filename}')
 
+all_data = []
+for filename in os.listdir(main_folder):
+    if not filename.endswith('_processed.csv'):
+        continue
+    data = pd.read_csv(os.path.join(main_folder, filename))
+    all_data.append(data)
 
-combined_df = pd.concat(merged_files, ignore_index=True)
+combined_df = pd.concat(all_data, ignore_index=True)
+
+missing_values = combined_df.isnull().sum()
+print("Missing values in each column:\n", missing_values)
+combined_df = combined_df.dropna()
+
 print('Activity values after down sampling \n', combined_df['activity'].value_counts())
 print('Final data \n', combined_df.head())
 print(f"Final size of dataframe: {len(combined_df)}")
