@@ -52,8 +52,8 @@ def train_test_split(path, timesteps):
     data = data.dropna()
 
     # remove after new DREAMT data
-    lying_data = data[data['activity'] == 'lying']
-    sleeping_data = data[data['activity'] == 'sleeping']
+    lying_data = data[data['activity'] == 'W']
+    sleeping_data = data[data['activity'].isin(['N1', 'N2', 'N3', 'R'])]
     sleeping_data = sleeping_data[:int(len(data) * 0.6)]
     data = pd.concat([lying_data, sleeping_data])
 
@@ -314,12 +314,12 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 8000
+    time_required_ms = 30000
     samples_required = int(time_required_ms * frequency / 1000)
     print('Timesteps per timeseries: ', time_required_ms)
     
-    path = "../process_datasets/combined_dataset.csv"
-    filename = f"{time_required_ms}_8_classes"
+    path = "../process_datasets/combined_dreamt_32Hz.csv"
+    filename = "32Hz_2_classes"
     class_labels = ['lying', 'sleeping']
 
     # Implemented models
@@ -330,6 +330,6 @@ if __name__ == '__main__':
     for chosen_model in models:
         print(f'{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
-                                                                class_labels, filename, train_model=False)
+                                                                class_labels, filename, train_model=True)
 
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
