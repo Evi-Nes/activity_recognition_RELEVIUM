@@ -330,7 +330,7 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 8000
+    time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
 
     path = "../process_datasets/combined_dataset.csv"
@@ -343,12 +343,11 @@ if __name__ == '__main__':
 
     # Implemented models
     # models = ['gru_2']
-    # 'gru_2', 'cnn_lstm', 
-    models = ['cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
     X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required)
     
     # Uncomment if you want to plot the distribution of the data
-    plot_data_distribution(y_train, y_test, unique_activities, filename)
+    # plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
