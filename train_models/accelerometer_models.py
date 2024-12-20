@@ -18,31 +18,25 @@ devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 
 
-def plot_data_distribution(path):
+def plot_data_distribution(y_train, y_test, unique_activities, filename):
     """
     This function plots the number of instances per activity (the distribution of the data).
     """
-    if not os.path.exists('plots'):
-        os.makedirs('plots')
-
-    data = pd.read_csv(path)
-    data = data.drop(['timestamp'], axis=1)
-    data = data.drop(['user_id'], axis=1)
-
-    undesired_activities = ['ELEVATOR_DOWN', 'ELEVATOR_UP', 'SITTING_ON_TRANSPORT', 'STAIRS_UP',
-                            'STANDING_ON_TRANSPORT', 'TRANSITION']
-    data = data[~data['activity'].isin(undesired_activities)]
-    data = data.iloc[::4, :]
-
-    class_counts = data['activity'].value_counts()
+    if not os.path.exists(f'plots_{filename}'):
+        os.makedirs(f'plots_{filename}')
+    y_train = pd.DataFrame(y_train)
+    y_test = pd.DataFrame(y_test)
+    data = pd.concat([y_train, y_test], ignore_index=True)
+    data = data.replace({'0': 'cycling', '1': 'dynamic_exercising', '2': 'lying', '3': 'running', '4': 'sitting', '5': 'standing', '6': 'static_exercising', '7': 'walking'})
+    class_counts = data.value_counts()
 
     plt.figure(figsize=(10, 10))
     class_counts.plot(kind='bar')
     plt.xlabel('Activity')
     plt.ylabel('Number of Instances')
     plt.xticks(rotation=45)
-    plt.savefig(f'plots/data_distribution.png')
-    plt.show()
+    plt.savefig(f'plots_{filename}/data_distribution.png')
+    # plt.show()
 
 
 def create_sequences(X_data, Y_data, timesteps, unique_activities):
@@ -76,8 +70,8 @@ def train_test_split(path, timesteps):
 
     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
-
     unique_activities = data['activity'].unique()
+    
     # uncomment this if you want to plot the data as timeseries
     # display_data(data, unique_activities)
     data_seq, activities_seq = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
@@ -270,7 +264,6 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
 
-
     return y_test_labels, y_pred_labels, smoothed_predictions
 
 
@@ -340,21 +333,25 @@ if __name__ == '__main__':
     time_required_ms = 8000
     samples_required = int(time_required_ms * frequency / 1000)
 
-    path = "../process_datasets/combined_dataset_8_classes.csv"
-    filename = f"{time_required_ms}_8_classes"
-    # class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
+    path = "../process_datasets/combined_dataset.csv"
+    filename = f"{time_required_ms}"
+    print(f'\nTraining 8 classes from file: {path}')
+    print('Timesteps per timeseries: ', time_required_ms)
+    print('\n')
+    
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
 
-    # Uncomment if you want to plot the distribution of the data
-    # plot_data_distribution(path)
-
     # Implemented models
-    models = ['gru_2']
-    # models = ['gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    # models = ['gru_2']
+    # 'gru_2', 'cnn_lstm', 
+    models = ['cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
     X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required)
+    
+    # Uncomment if you want to plot the distribution of the data
+    plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
-        print(f'{chosen_model=}')
+        print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
                                                                 class_labels, filename, train_model=True)
 
