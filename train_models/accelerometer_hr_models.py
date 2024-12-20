@@ -37,7 +37,7 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
-def train_test_split(path, timesteps):
+def train_test_split(path, timesteps, to_balance):
     """
     This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
     :return: train_data, test_data, unique_activities
@@ -52,23 +52,14 @@ def train_test_split(path, timesteps):
     data = data.dropna()
 
     # remove after new DREAMT data
-    lying_data = data[data['activity'] == 'W']
-    sleeping_data = data[data['activity'].isin(['N1', 'N2', 'N3', 'R'])]
-    sleeping_data = sleeping_data[:int(len(data) * 0.6)]
-    data = pd.concat([lying_data, sleeping_data])
+    if to_balance:
+        lying_data = data[data['activity'] == 'W']
+        sleeping_data = data[data['activity'].isin(['N1', 'N2', 'N3', 'R'])]
+        sleeping_data = sleeping_data[:int(len(data) * 0.6)]
+        data = pd.concat([lying_data, sleeping_data])
 
+    data = data.replace({'W': 0, 'N1': 1, 'N2': 1, 'N3': 1, 'R': 1})
     unique_activities = data['activity'].unique()
-
-    if not os.path.exists('plots'):
-        os.makedirs('plots')
-
-    for activity in unique_activities:
-        subset = data[data['activity'] == activity].iloc[4000:4200]
-        subset = subset.drop(['activity'], axis=1)
-
-        subset.plot(subplots=True, figsize=(10, 10))
-        plt.xlabel('Time')
-        plt.savefig(f'plots/scaled_{activity}_data.png')
 
     data_seq, activities_seq = create_sequences(data[['accel_x', 'accel_y', 'accel_z', 'hr']], data['activity'], timesteps, unique_activities)
 
@@ -314,21 +305,30 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 30000
+    time_required_ms = 500000
     samples_required = int(time_required_ms * frequency / 1000)
+    path = "../process_datasets/combined_dreamt_25Hz.csv"
+    to_balance = True
+
+    print(f'\nTraining with 2 classes with balanced data: {to_balance} from file: {path}')
     print('Timesteps per timeseries: ', time_required_ms)
-    
-    path = "../process_datasets/combined_dreamt_32Hz.csv"
-    filename = "32Hz_2_classes"
+    print(f'Frequency: {frequency} Hz \n')
+
+    if to_balance:
+        filename = f"{frequency}Hz_2_classes_balanced"
+    else:
+        filename = f"{frequency}Hz_2_classes_unbalanced"
+
     class_labels = ['lying', 'sleeping']
+    # class_labels = ['W', 'N1', 'N2', 'N3', 'R']
 
     # Implemented models
     models = ['gru_2']
     # models = ['gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
-    X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required)
+    X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required, to_balance)
 
     for chosen_model in models:
-        print(f'{chosen_model=}')
+        print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
                                                                 class_labels, filename, train_model=True)
 
