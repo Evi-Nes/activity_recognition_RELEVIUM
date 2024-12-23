@@ -68,37 +68,89 @@ def train_test_split(path, timesteps):
     scaler = RobustScaler()
     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
 
-    data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+    data = data[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     unique_activities = data['activity'].unique()
-    
+    unique_users = data['user_id'].unique()
+
+    for user in unique_users:
+        sample = data[data['user_id']==user]
+        print('\n', user)
+        print(sample['activity'].value_counts())
+
+
+
     # uncomment this if you want to plot the data as timeseries
     # display_data(data, unique_activities)
     data_seq, activities_seq = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
 
-    np.random.seed(42)
-    original_indices = np.arange(len(activities_seq))
-    shuffled_indices = original_indices.copy()
-    np.random.shuffle(shuffled_indices)
+    user_ids = data['user_id'].values  # Assuming original data has user_id for mapping
+    sequence_user_map = []
+    sequence_activity_map = []
 
-    data_seq = data_seq[shuffled_indices]
-    activities_seq = activities_seq[shuffled_indices]
+    # Map each sequence to its user and activity
+    start_idx = 0
+    for seq, activity in zip(data_seq, activities_seq):
+        seq_length = len(seq)
+        end_idx = start_idx + seq_length
+        # user_for_seq = user_ids[start_idx:end_idx]  
+        # values, counts = np.unique(user_for_seq, return_counts=True)
 
-    size = len(activities_seq)
-    test_indices = shuffled_indices[int(size * 0.8):]
+        # ind = np.argmax(counts)
+        sequence_user_map.append(user_ids[start_idx])
+        sequence_activity_map.append(activity)
+        start_idx = end_idx
+        if start_idx > len(user_ids):
+            break
 
-    X_train = data_seq[:int(size * 0.8)]
-    y_train = activities_seq[:int(size * 0.8)]
-    X_test = data_seq[int(size * 0.8):]
-    y_test = activities_seq[int(size * 0.8):]
+    # Convert to DataFrame for easier handling
+    sequence_df = pd.DataFrame({
+        'sequence': data_seq,
+        'activity': activities_seq,
+        'user_id': sequence_user_map
+    })
 
-    restored_test_order = np.argsort(test_indices)
-    X_test_restored = X_test[restored_test_order]
-    y_test_restored = y_test[restored_test_order]
+    # Handle activities with only one user (static, dynamic exercising)
+    special_activities = ['static', 'dynamic exercising']
+    special_data = sequence_df[sequence_df['activity'].isin(special_activities)]
 
-    for activity in unique_activities:
-        print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
-        print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
+    # Temporal split for single-user activities
+    special_train = special_data.groupby('activity').apply(
+        lambda group: group.iloc[:int(0.8 * len(group))]
+    ).reset_index(drop=True)
+
+    # Remove these activities from the main dataset
+    remaining_data = sequence_df[~sequence_df['activity'].isin(special_activities)]
+
+    # Perform stratified split by user
+    user_activity_groups = remaining_data.groupby(['user_id', 'activity']).size().reset_index(name='counts')
+    user_activity_map = user_activity_groups[['user_id', 'activity']].drop_duplicates()
+
+    train_users, test_users = train_test_split(
+        user_activity_map['user_id'].unique(),
+        test_size=0.2,
+        random_state=42
+    )
+
+    # Filter sequences based on train/test users
+    train_data = remaining_data[remaining_data['user_id'].isin(train_users)]
+    test_data = remaining_data[remaining_data['user_id'].isin(test_users)]
+
+    # Combine special activity splits
+    final_train = pd.concat([train_data, special_train], ignore_index=True)
+    final_test = pd.concat([test_data, special_test], ignore_index=True)
+
+    # Shuffle only the train data
+    final_train = final_train.sample(frac=1, random_state=42).reset_index(drop=True)
+
+    print("Training data")
+    print(final_train['activity'].value_counts())
+    print("Testing data")
+    print(final_test['activity'].value_counts())
+
+    # for activity in unique_activities:
+    #     print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
+    #     print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
 
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder = hot_encoder.fit(y_train)
