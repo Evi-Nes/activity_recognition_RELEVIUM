@@ -8,4 +8,4 @@ source ~/venv_gpu/bin/activate
 
 
 echo "Training Models with gpu"
-python train_test_split.py
+python accelerometer_models.py

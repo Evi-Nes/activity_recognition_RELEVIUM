@@ -57,7 +57,7 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
-def train_test_split(path, timesteps):
+def train_test_split(path, timesteps, testing):
     """
     This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
     :return: train_data, test_data, unique_activities
@@ -68,96 +68,27 @@ def train_test_split(path, timesteps):
     scaler = RobustScaler()
     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
 
-    data = data[['timestamp', 'user_id', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+    data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     unique_activities = data['activity'].unique()
-    unique_users = data['user_id'].unique()
-
-    for user in unique_users:
-        sample = data[data['user_id']==user]
-        print('\n', user)
-        print(sample['activity'].value_counts())
-
-
 
     # uncomment this if you want to plot the data as timeseries
     # display_data(data, unique_activities)
-    data_seq, activities_seq = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
+    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
 
-    user_ids = data['user_id'].values  # Assuming original data has user_id for mapping
-    sequence_user_map = []
-    sequence_activity_map = []
+    if not testing:
+        np.random.seed(42)
+        random = np.arange(0, len(y_data))
+        np.random.shuffle(random)
+        x_data = x_data[random]
+        y_data = y_data[random]
 
-    # Map each sequence to its user and activity
-    start_idx = 0
-    for seq, activity in zip(data_seq, activities_seq):
-        seq_length = len(seq)
-        end_idx = start_idx + seq_length
-        # user_for_seq = user_ids[start_idx:end_idx]  
-        # values, counts = np.unique(user_for_seq, return_counts=True)
+    # print(final_train['activity'].value_counts())
 
-        # ind = np.argmax(counts)
-        sequence_user_map.append(user_ids[start_idx])
-        sequence_activity_map.append(activity)
-        start_idx = end_idx
-        if start_idx > len(user_ids):
-            break
+    for activity in unique_activities:
+        print(f'Activity {activity}: {len(y_data[y_data == activity])}')
 
-    # Convert to DataFrame for easier handling
-    sequence_df = pd.DataFrame({
-        'sequence': data_seq,
-        'activity': activities_seq,
-        'user_id': sequence_user_map
-    })
-
-    # Handle activities with only one user (static, dynamic exercising)
-    special_activities = ['static', 'dynamic exercising']
-    special_data = sequence_df[sequence_df['activity'].isin(special_activities)]
-
-    # Temporal split for single-user activities
-    special_train = special_data.groupby('activity').apply(
-        lambda group: group.iloc[:int(0.8 * len(group))]
-    ).reset_index(drop=True)
-
-    # Remove these activities from the main dataset
-    remaining_data = sequence_df[~sequence_df['activity'].isin(special_activities)]
-
-    # Perform stratified split by user
-    user_activity_groups = remaining_data.groupby(['user_id', 'activity']).size().reset_index(name='counts')
-    user_activity_map = user_activity_groups[['user_id', 'activity']].drop_duplicates()
-
-    train_users, test_users = train_test_split(
-        user_activity_map['user_id'].unique(),
-        test_size=0.2,
-        random_state=42
-    )
-
-    # Filter sequences based on train/test users
-    train_data = remaining_data[remaining_data['user_id'].isin(train_users)]
-    test_data = remaining_data[remaining_data['user_id'].isin(test_users)]
-
-    # Combine special activity splits
-    final_train = pd.concat([train_data, special_train], ignore_index=True)
-    final_test = pd.concat([test_data, special_test], ignore_index=True)
-
-    # Shuffle only the train data
-    final_train = final_train.sample(frac=1, random_state=42).reset_index(drop=True)
-
-    print("Training data")
-    print(final_train['activity'].value_counts())
-    print("Testing data")
-    print(final_test['activity'].value_counts())
-
-    # for activity in unique_activities:
-    #     print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
-    #     print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
-
-    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_train)
-    y_train = hot_encoder.transform(y_train)
-    y_test_restored = hot_encoder.transform(y_test_restored)
-
-    return X_train, y_train, X_test_restored, y_test_restored, unique_activities
+    return x_data, y_data, unique_activities
 
 
 def display_data(data, unique_activities):
@@ -385,24 +316,36 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
 
-    path = "../process_datasets/combined_dataset.csv"
+    train_path = "../process_datasets/train_data.csv"
+    test_path = "../process_datasets/test_data.csv"
     filename = f"{time_required_ms}"
-    print(f'\nTraining 8 classes from file: {path}')
+    print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print('\n')
     
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
 
     # Implemented models
-    # models = ['gru_2']
-    models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
-    X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required)
-    
+    models = ['gru_2']
+    # models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
+    X_test, y_test, _ = train_test_split(test_path, samples_required, True)
+
+    unique, counts = np.unique(y_train, return_counts=True)
+    print(np.asarray((unique, counts)).T)
+    unique, counts = np.unique(y_test, return_counts=True)
+    print(np.asarray((unique, counts)).T)
+
+    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    hot_encoder = hot_encoder.fit(y_train)
+    y_train = hot_encoder.transform(y_train)
+    y_test = hot_encoder.transform(y_test)
+
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
-        print(f'\n{chosen_model=}')
+        print(f'\n{chosen_model=}') 
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
                                                                 class_labels, filename, train_model=True)
 

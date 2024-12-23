@@ -4,8 +4,8 @@ df = pd.read_csv('../process_datasets/combined_dataset.csv')
 print(df['activity'].value_counts())
 print(df.value_counts())
 
-# print(df['user_id'].unique())
 unique_users = df['user_id'].unique()
+# print(unique_users)
 domino_users = []
 wisdm_users = []
 pamap_users = []
@@ -28,14 +28,14 @@ test_users = []
 train_users.append(domino_users[:int(0.8*len(domino_users))]) 
 test_users.append(domino_users[int(0.8*len(domino_users)):])
 
-train_users.append(wisdm_users[:int(0.8*len(domino_users))]) 
-test_users.append(wisdm_users[int(0.8*len(domino_users)):])
+train_users.append(wisdm_users[:int(0.8*len(wisdm_users))]) 
+test_users.append(wisdm_users[int(0.8*len(wisdm_users)):])
 
-train_users.append(dreamt_users[:int(0.8*len(domino_users))]) 
-test_users.append(dreamt_users[int(0.8*len(domino_users)):])
+train_users.append(dreamt_users[:int(0.6*len(dreamt_users))]) 
+test_users.append(dreamt_users[int(0.6*len(dreamt_users)):])
 
-train_users.append(pamap_users[:int(0.8*len(domino_users))]) 
-test_users.append(pamap_users[int(0.8*len(domino_users)):])
+train_users.append(pamap_users[:int(0.8*len(pamap_users))]) 
+test_users.append(pamap_users[int(0.8*len(pamap_users)):])
 
 train_users_flat = [element for sublist in train_users for element in sublist]
 test_users_flat = [element for sublist in test_users for element in sublist]
@@ -43,14 +43,17 @@ test_users_flat = [element for sublist in test_users for element in sublist]
 walking_data =  df[df['user_id'] == walking_running_user]
 train_walking = walking_data[:int(0.8 * len(walking_data))]
 test_walking = walking_data[int(0.8 * len(walking_data)):]
+print(train_walking)
 
 static_exercising_data =  df[df['activity'] == 'static_exercising']
 train_static = static_exercising_data[:int(0.8 * len(static_exercising_data))]
 test_static = static_exercising_data[int(0.8 * len(static_exercising_data)):]
+print(train_static)
 
 dynamic_exercising_data =  df[df['activity'] == 'dynamic_exercising']
 train_dynamic = dynamic_exercising_data[:int(0.8 * len(dynamic_exercising_data))]
 test_dynamic = dynamic_exercising_data[int(0.8 * len(dynamic_exercising_data)):]
+print(train_dynamic)
 
 train_users_data = df[df['user_id'].isin(train_users_flat)]
 test_users_data = df[df['user_id'].isin(test_users_flat)]
