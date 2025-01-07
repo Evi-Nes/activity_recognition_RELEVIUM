@@ -31,15 +31,16 @@ test_users.append(domino_users[int(0.8*len(domino_users)):])
 train_users.append(wisdm_users[:int(0.8*len(wisdm_users))]) 
 test_users.append(wisdm_users[int(0.8*len(wisdm_users)):])
 
-train_users.append(dreamt_users[:int(0.6*len(dreamt_users))]) 
-test_users.append(dreamt_users[int(0.6*len(dreamt_users)):])
-
 train_users.append(pamap_users[:int(0.8*len(pamap_users))]) 
 test_users.append(pamap_users[int(0.8*len(pamap_users)):])
-print(test_users)
+
+# Remove some dreamt users for more balanced output
+train_users.append(dreamt_users[:int(0.5*len(dreamt_users))]) 
+test_users.append(dreamt_users[int(0.8*len(dreamt_users)):])
+
 train_users_flat = [element for sublist in train_users for element in sublist]
 test_users_flat = [element for sublist in test_users for element in sublist]
-print(test_users_flat)
+
 walking_data =  df[df['user_id'] == walking_running_user]
 train_walking = walking_data[:int(0.8 * len(walking_data))]
 test_walking = walking_data[int(0.8 * len(walking_data)):]
@@ -63,8 +64,8 @@ test_data = pd.concat([test_users_data, test_walking, test_static, test_dynamic]
 
 print(train_data['activity'].value_counts())
 print(test_data['activity'].value_counts())
-print(len(train_data))
-print(len(test_data))
+print('Len of train data:', len(train_data))
+print('Len of test data: ', len(test_data))
 
 train_data.to_csv('../process_datasets/train_data.csv', index=False)
 test_data.to_csv('../process_datasets/test_data.csv', index=False)

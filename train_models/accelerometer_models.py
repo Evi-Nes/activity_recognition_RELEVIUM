@@ -6,16 +6,66 @@ import os
 import contextlib
 import tensorflow as tf
 
-from sklearn.preprocessing import OneHotEncoder, RobustScaler
+from sklearn.preprocessing import OneHotEncoder, RobustScaler, StandardScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
 from keras.src.layers import MaxPooling1D, Conv1D, Layer, Dense
 
 from sklearn.feature_selection import VarianceThreshold
 from sklearn import preprocessing
+from scipy.fft import fft
+from scipy.stats import skew, kurtosis
 
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
+
+
+def compute_frequency_features(data, sampling_rate=25):
+    """
+    Compute frequency domain features from the data.
+    """
+    # Apply FFT
+    fft_vals = np.abs(fft(data))
+    freqs = np.fft.fftfreq(len(data), d=1/sampling_rate)
+    
+    # Keep only positive frequencies
+    positive_indices = np.where(freqs > 0)[0]  # Find indices of positive frequencies
+    positive_freqs = freqs[positive_indices]
+    positive_fft_vals = fft_vals[positive_indices]
+    
+    # Ensure positive_freqs is not empty
+    if len(positive_freqs) == 0 or len(positive_fft_vals) == 0:
+        dominant_freq = 0
+        spectral_energy = 0
+        spectral_entropy = 0
+    else:
+        # Compute frequency domain features
+        dominant_freq = positive_freqs[np.argmax(positive_fft_vals)]
+        spectral_energy = np.sum(positive_fft_vals**2)
+        spectral_entropy = -np.sum((positive_fft_vals / np.sum(positive_fft_vals)) * 
+                                   np.log(positive_fft_vals / np.sum(positive_fft_vals) + 1e-12))
+    
+    return np.array([dominant_freq, spectral_energy, spectral_entropy])
+
+
+def compute_statistical_features(data):
+    """
+    Compute statistical features from the data.
+    """
+    mean_val = np.mean(data)
+    variance_val = np.var(data)
+    skewness_val = skew(data)
+    kurtosis_val = kurtosis(data)
+    min_val = np.min(data)
+    max_val = np.max(data)
+    rms_val = np.sqrt(np.mean(data**2))
+    
+    return np.hstack((
+        np.array([mean_val, variance_val]),
+        np.array([skewness_val]).flatten(),  # Ensure skewness is flattened
+        np.array([kurtosis_val]).flatten(),  # Ensure kurtosis is flattened
+        np.array([min_val, max_val, rms_val])
+    ))
 
 
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
@@ -46,15 +96,29 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     :returns: data as timeseries
     """
     X_seq, Y_seq = [], []
+    features = []
     for activity in unique_activities:
         for i in range(0, len(X_data) - timesteps, timesteps // 2):
             if Y_data.iloc[i] != activity or Y_data.iloc[i + timesteps] != activity:
                 continue
 
-            X_seq.append(X_data.iloc[i:(i + timesteps)].values)
+            window_data = X_data.iloc[i:(i + timesteps)].values
+            X_seq.append(window_data)            
             Y_seq.append(activity)
+
+             # Compute features
+            freq_features = compute_frequency_features(window_data.flatten(), 25)
+            stat_features = compute_statistical_features(window_data.flatten())
+
+            # Combine features
+            combined_features = np.hstack((freq_features, stat_features))
+            features.append(combined_features)
+
     X_seq, Y_seq = np.array(X_seq), np.array(Y_seq)
-    return X_seq, Y_seq.reshape(-1, 1)
+    features = np.array(features)
+    # print(X_seq.shape)
+    # print(features.shape)
+    return X_seq, Y_seq.reshape(-1, 1), features
 
 
 def train_test_split(path, timesteps, testing, scaler):
@@ -63,10 +127,12 @@ def train_test_split(path, timesteps, testing, scaler):
     :return: train_data, test_data, unique_activities
     """
     data = pd.read_csv(path)
-
-    # columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
-    # scaler = RobustScaler()
-    # data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
+    if not testing:
+        scaler = RobustScaler()
+        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    else:
+        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
 
     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
@@ -74,8 +140,14 @@ def train_test_split(path, timesteps, testing, scaler):
 
     # uncomment this if you want to plot the data as timeseries
     # display_data(data, unique_activities)
-    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
-    columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
+
+    x_data, y_data, features = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
+    # fscaler = StandardScaler()
+    # features = fscaler.fit_transform(features)
+    
+    # # Expand features to match the time steps
+    # features_expanded = np.repeat(features[:, np.newaxis, :], x_data.shape[1], axis=1)  # Shape: (9067, 250, 10)
+    # x_data = np.concatenate((x_data, features_expanded), axis=-1)  # Shape: (9067, 250, 13)
 
     if not testing:
         np.random.seed(42)
@@ -83,11 +155,6 @@ def train_test_split(path, timesteps, testing, scaler):
         np.random.shuffle(random)
         x_data = x_data[random]
         y_data = y_data[random]
-        scaler = RobustScaler()
-        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-    else:
-        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
-    # print(final_train['activity'].value_counts())
 
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
@@ -200,6 +267,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
 
     if train_model:
         input_shape = (X_train.shape[1], X_train.shape[2])
+        # input_shape = (timesteps, features)
         model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
     else:
         model = keras.models.load_model(file_name)
