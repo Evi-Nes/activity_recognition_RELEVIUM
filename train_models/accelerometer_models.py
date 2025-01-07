@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
-from keras.src.layers import MaxPooling1D, Conv1D
+from keras.src.layers import MaxPooling1D, Conv1D, Layer, Dense
 
 from sklearn.feature_selection import VarianceThreshold
 from sklearn import preprocessing
@@ -35,7 +35,7 @@ def plot_data_distribution(y_train, y_test, unique_activities, filename):
     plt.xlabel('Activity')
     plt.ylabel('Number of Instances')
     plt.xticks(rotation=45)
-    plt.savefig(f'plots_{filename}/data_distribution.png')
+    plt.savefig(f'files_{filename}/plots_{filename}/data_distribution.png')
     # plt.show()
 
 
@@ -108,7 +108,7 @@ def display_data(data, unique_activities):
 
         subset.plot(subplots=True, figsize=(10, 10))
         plt.xlabel('Time')
-        plt.savefig(f'plots/scaled_{activity}_data.png')
+        plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}_data.png')
         # plt.show()
 
 
@@ -193,10 +193,10 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     classification report.
     :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
     """
-    if not os.path.exists(f'saved_models_{filename}'):
-        os.makedirs(f'saved_models_{filename}')
+    if not os.path.exists(f'files_{filename}/saved_models_{filename}'):
+        os.makedirs(f'files_{filename}/saved_models_{filename}')
 
-    file_name = f'saved_models_{filename}/acc_{chosen_model}_model.h5'
+    file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.h5'
 
     if train_model:
         input_shape = (X_train.shape[1], X_train.shape[2])
@@ -259,7 +259,7 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
     and y_pred_labels parameters, it creates and saves the confusion matrix.
     """
-    path = f'plots_{filename}'
+    path = f'files_{filename}/plots_{filename}'
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -322,9 +322,10 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}"
+    filename = f"{time_required_ms}ms"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
+    print(f"folder path: files_{filename}")
     print('\n')
     
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
