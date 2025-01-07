@@ -164,8 +164,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     elif chosen_model == 'gru_2':
         model.add(keras.layers.GRU(units=64, return_sequences=True, input_shape=input_shape))
         model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.GRU(units=32, return_sequences=True, input_shape=input_shape))
-        model.add(Attention(64))
+        model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
+        # model.add(Attention(64))
         model.add(keras.layers.Dropout(rate=0.3))
     elif chosen_model == 'cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
@@ -175,8 +175,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     elif chosen_model == 'cnn_gru':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
         model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.GRU(units=32, return_sequences=True, input_shape=input_shape))
-        model.add(Attention(64))
+        model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
+        # model.add(Attention(64))
         model.add(keras.layers.Dropout(rate=0.4))
     elif chosen_model == 'cnn_cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
@@ -355,7 +355,7 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}_attention2"
+    filename = f"{time_required_ms}"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print('\n')
