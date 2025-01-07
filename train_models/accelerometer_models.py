@@ -16,24 +16,6 @@ from sklearn import preprocessing
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
-        
-
-class Attention(tf.keras.layers.Layer):
-    def __init__(self, units):
-        super(Attention, self).__init__()
-        self.W = tf.keras.layers.Dense(units)
-        self.V = tf.keras.layers.Dense(1)
-
-    def call(self, inputs):
-        # Compute attention scores
-        score = tf.nn.tanh(self.W(inputs))
-        attention_weights = tf.nn.softmax(self.V(score), axis=1)
-
-        # Apply attention weights to input
-        context_vector = attention_weights * inputs
-        context_vector = tf.reduce_sum(context_vector, axis=1)
-
-        return context_vector
 
 
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
