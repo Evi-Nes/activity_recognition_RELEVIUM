@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
-from keras.src.layers import MaxPooling1D, Conv1D, Layer, Dense
+from keras.src.layers import MaxPooling1D, Conv1D
 
 from sklearn.feature_selection import VarianceThreshold
 from sklearn import preprocessing
@@ -16,19 +16,6 @@ from sklearn import preprocessing
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
-
-
-# class Attention(Layer):
-#     def __init__(self, **kwargs):
-#         super(Attention, self).__init__(**kwargs)
-#         self.score_dense = tf.keras.layers.Dense(1)  # Define once in the constructor
-
-#     def call(self, inputs):
-#         # Calculate attention weights
-#         score = tf.nn.softmax(self.score_dense(inputs), axis=1)  # Softmax over the time steps
-#         # Compute context vector as weighted sum of inputs
-#         context = tf.reduce_sum(inputs * score, axis=1)  # Weighted sum across time steps
-#         return context
         
 
 class Attention(tf.keras.layers.Layer):
@@ -120,8 +107,8 @@ def train_test_split(path, timesteps, testing, scaler):
         data[columns_to_scale] = scaler.transform(data[columns_to_scale])
     # print(final_train['activity'].value_counts())
 
-    for activity in unique_activities:
-        print(f'Activity {activity}: {len(y_data[y_data == activity])}')
+    # for activity in unique_activities:
+    #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
 
     return x_data, y_data, unique_activities, scaler
 
@@ -165,7 +152,6 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
         model.add(keras.layers.GRU(units=64, return_sequences=True, input_shape=input_shape))
         model.add(keras.layers.Dropout(rate=0.4))
         model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
-        # model.add(Attention(64))
         model.add(keras.layers.Dropout(rate=0.3))
     elif chosen_model == 'cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
@@ -176,7 +162,6 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
         model.add(MaxPooling1D(pool_size=4))
         model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
-        # model.add(Attention(64))
         model.add(keras.layers.Dropout(rate=0.4))
     elif chosen_model == 'cnn_cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
