@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
-from keras.src.layers import MaxPooling1D, Conv1D
+from keras.src.layers import MaxPooling1D, Conv1D, Layer, Dense
 
 from sklearn.feature_selection import VarianceThreshold
 from sklearn import preprocessing
@@ -17,6 +17,19 @@ from sklearn import preprocessing
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 
+
+class Attention(Layer):
+    def __init__(self, **kwargs):
+        super(Attention, self).__init__(**kwargs)
+        self.score_dense = tf.keras.layers.Dense(1)  # Define once in the constructor
+
+    def call(self, inputs):
+        # Calculate attention weights
+        score = tf.nn.softmax(self.score_dense(inputs), axis=1)  # Softmax over the time steps
+        # Compute context vector as weighted sum of inputs
+        context = tf.reduce_sum(inputs * score, axis=1)  # Weighted sum across time steps
+        return context
+        
 
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
     """
@@ -57,16 +70,16 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
-def train_test_split(path, timesteps, testing):
+def train_test_split(path, timesteps, testing, scaler):
     """
     This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
     :return: train_data, test_data, unique_activities
     """
     data = pd.read_csv(path)
 
-    columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
-    scaler = RobustScaler()
-    data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    # columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
+    # scaler = RobustScaler()
+    # data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
 
     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
@@ -75,6 +88,7 @@ def train_test_split(path, timesteps, testing):
     # uncomment this if you want to plot the data as timeseries
     # display_data(data, unique_activities)
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
+    columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
 
     if not testing:
         np.random.seed(42)
@@ -82,13 +96,16 @@ def train_test_split(path, timesteps, testing):
         np.random.shuffle(random)
         x_data = x_data[random]
         y_data = y_data[random]
-
+        scaler = RobustScaler()
+        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    else:
+        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
     # print(final_train['activity'].value_counts())
 
     for activity in unique_activities:
         print(f'Activity {activity}: {len(y_data[y_data == activity])}')
 
-    return x_data, y_data, unique_activities
+    return x_data, y_data, unique_activities, scaler
 
 
 def display_data(data, unique_activities):
@@ -129,7 +146,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     elif chosen_model == 'gru_2':
         model.add(keras.layers.GRU(units=64, return_sequences=True, input_shape=input_shape))
         model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
+        model.add(keras.layers.GRU(units=32, return_sequences=True, input_shape=input_shape))
+        model.add(Attention())
         model.add(keras.layers.Dropout(rate=0.3))
     elif chosen_model == 'cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
@@ -139,7 +157,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     elif chosen_model == 'cnn_gru':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
         model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
+        model.add(keras.layers.GRU(units=32, return_sequences=True, input_shape=input_shape))
+        model.add(Attention())
         model.add(keras.layers.Dropout(rate=0.4))
     elif chosen_model == 'cnn_cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
@@ -326,10 +345,11 @@ if __name__ == '__main__':
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
 
     # Implemented models
-    models = ['gru_2']
+    models = ['gru_2', 'cnn_gru']
     # models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
-    X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
-    X_test, y_test, _ = train_test_split(test_path, samples_required, True)
+    scaler = RobustScaler()
+    X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
+    X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)
 
     unique, counts = np.unique(y_train, return_counts=True)
     print(np.asarray((unique, counts)).T)
