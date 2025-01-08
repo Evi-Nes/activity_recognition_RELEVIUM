@@ -245,7 +245,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
         model.add(keras.layers.Dropout(rate=0.4))
 
     model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=[keras.metrics.CategoricalAccuracy()])   #['acc']
 
     model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
     model.save(file_name)
@@ -390,7 +390,7 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms"
+    filename = f"{time_required_ms}ms_categ_accuracy"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
