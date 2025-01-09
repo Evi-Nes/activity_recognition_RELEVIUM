@@ -90,6 +90,24 @@ def plot_data_distribution(y_train, y_test, unique_activities, filename):
     # plt.show()
 
 
+def jitter_data(data, noise_level=0.01):
+    """
+    Adds random noise to accelerometer data.
+    
+    Parameters:
+    - data: np.array of shape (num_samples, window_size, num_axes)
+    - noise_level: float, standard deviation of Gaussian noise
+    
+    Returns:
+    - Jittered data
+    """
+    # noise = np.random.normal(0, noise_level, size=data.shape)
+    std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
+    noise = np.random.normal(loc=0.0, scale=noise_level * std_dev, size=data.shape)
+    jittered_data = data + noise
+    return jittered_data
+
+
 def create_sequences(X_data, Y_data, timesteps, unique_activities):
     """
     This function takes the X, Y data as time instances and transforms them to small timeseries.
@@ -129,11 +147,11 @@ def train_test_split(path, timesteps, testing, scaler):
     """
     data = pd.read_csv(path)
     columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
-    if not testing:
-        scaler = RobustScaler()
-        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-    else:
-        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
+    # if not testing:
+    #     scaler = RobustScaler()
+    #     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    # else:
+    #     data[columns_to_scale] = scaler.transform(data[columns_to_scale])
 
     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
@@ -150,12 +168,12 @@ def train_test_split(path, timesteps, testing, scaler):
     # features_expanded = np.repeat(features[:, np.newaxis, :], x_data.shape[1], axis=1)  # Shape: (9067, 250, 10)
     # x_data = np.concatenate((x_data, features_expanded), axis=-1)  # Shape: (9067, 250, 13)
 
-    # if not testing:
-    #     np.random.seed(42)
-    #     random = np.arange(0, len(y_data))
-    #     np.random.shuffle(random)
-    #     x_data = x_data[random]
-    #     y_data = y_data[random]
+    if not testing:
+        np.random.seed(42)
+        random = np.arange(0, len(y_data))
+        np.random.shuffle(random)
+        x_data = x_data[random]
+        y_data = y_data[random]
 
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
@@ -248,8 +266,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=[keras.metrics.CategoricalAccuracy()])   #['acc']
 
-    # model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
-    # model.save(file_name)
+    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
+    model.save(file_name)
 
     return model
 
@@ -321,6 +339,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
 
     return y_test_labels, y_pred_labels, smoothed_predictions
+
 
 def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename):
 
@@ -408,7 +427,6 @@ def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, clas
     print('\n')
 
 
-
 def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
     """
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
@@ -477,7 +495,7 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_5kfold"
+    filename = f"{time_required_ms}ms_jittered_data_01_adjusted"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
@@ -492,23 +510,44 @@ if __name__ == '__main__':
     X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
     X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)
 
-    unique, counts = np.unique(y_train, return_counts=True)
+    # Add noise to original data
+    X_train_jittered = jitter_data(X_train, noise_level=0.01)
+    y_train_jittered = np.copy(y_train)  
+    X_test_jittered = jitter_data(X_test, noise_level=0.01)
+    y_test_jittered = np.copy(y_test)
+
+    # Concatenate original and augmented data
+    X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
+    y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
+    X_test_augmented = np.concatenate((X_test, X_test_jittered), axis=0)
+    y_test_augmented = np.concatenate((y_test, y_test_jittered), axis=0)
+
+    scaler = RobustScaler()
+    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    X_train_flat = scaler.fit_transform(X_train_flat)
+    X_train_scaled = X_train_flat.reshape(X_train_augmented.shape)
+
+    X_test_flat = X_test_augmented.reshape(-1, X_test_augmented.shape[-1])
+    X_test_flat = scaler.transform(X_test_flat)
+    X_test_scaled = X_test_flat.reshape(X_test_augmented.shape)
+
+    unique, counts = np.unique(y_train_augmented, return_counts=True)
     print(np.asarray((unique, counts)).T)
-    unique, counts = np.unique(y_test, return_counts=True)
+    unique, counts = np.unique(y_test_augmented, return_counts=True)
     print(np.asarray((unique, counts)).T)
 
-    # hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    # hot_encoder = hot_encoder.fit(y_train)
-    # y_train = hot_encoder.transform(y_train)
-    # y_test = hot_encoder.transform(y_test)
+    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    hot_encoder = hot_encoder.fit(y_train_augmented)
+    y_train_augmented = hot_encoder.transform(y_train_augmented)
+    y_test_augmented = hot_encoder.transform(y_test_augmented)
 
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}') 
-        # y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
-                                                                # class_labels, filename, train_model=True)
-        cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename)
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_scaled, y_train_augmented, X_test_scaled, y_test_augmented, chosen_model,
+                                                                class_labels, filename, train_model=True)
+        # cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename)
 
-        # plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
+        plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
