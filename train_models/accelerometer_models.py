@@ -12,6 +12,7 @@ from keras.src.layers import MaxPooling1D, Conv1D, Layer, Dense
 
 from sklearn.feature_selection import VarianceThreshold
 from sklearn import preprocessing
+from sklearn.model_selection import StratifiedKFold
 from scipy.fft import fft
 from scipy.stats import skew, kurtosis
 
@@ -149,12 +150,12 @@ def train_test_split(path, timesteps, testing, scaler):
     # features_expanded = np.repeat(features[:, np.newaxis, :], x_data.shape[1], axis=1)  # Shape: (9067, 250, 10)
     # x_data = np.concatenate((x_data, features_expanded), axis=-1)  # Shape: (9067, 250, 13)
 
-    if not testing:
-        np.random.seed(42)
-        random = np.arange(0, len(y_data))
-        np.random.shuffle(random)
-        x_data = x_data[random]
-        y_data = y_data[random]
+    # if not testing:
+    #     np.random.seed(42)
+    #     random = np.arange(0, len(y_data))
+    #     np.random.shuffle(random)
+    #     x_data = x_data[random]
+    #     y_data = y_data[random]
 
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
@@ -247,8 +248,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=[keras.metrics.CategoricalAccuracy()])   #['acc']
 
-    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
-    model.save(file_name)
+    # model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
+    # model.save(file_name)
 
     return model
 
@@ -321,6 +322,92 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
 
     return y_test_labels, y_pred_labels, smoothed_predictions
 
+def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename):
+
+    kf = StratifiedKFold(n_splits=5, shuffle=False, random_state=None)
+    fold_no = 1
+    X = np.concatenate((X_train, X_test), axis=0)
+    y = np.concatenate((y_train, y_test), axis=0)
+    acc_per_fold = []
+    loss_per_fold = []
+    
+    for train_index, test_index in kf.split(X, y):
+        X_train = X[train_index]
+        y_train = y[train_index]
+        X_test = X[test_index]
+        y_test = y[test_index]
+
+        hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+        hot_encoder = hot_encoder.fit(y_train)
+        y_train = hot_encoder.transform(y_train)
+        y_test = hot_encoder.transform(y_test)
+
+        input_shape = (X_train.shape[1], X_train.shape[2])
+        file_name = ''
+
+        print('------------------------------------------------------------------------')
+        print(f'Training for fold {fold_no} ...')
+        model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
+        history = model.fit(
+                    X_train, y_train,
+                    batch_size=32,
+                    epochs=40,
+                    verbose=2,
+                )
+
+        scores = model.evaluate(X_test, y_test)
+        print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
+        acc_per_fold.append(scores[1] * 100)
+        loss_per_fold.append(scores[0])
+        
+        # extra metrics
+        probabilities = model.predict(X_test)
+
+        window_size = 3
+        threshold = 0.8
+        y_test_labels = np.argmax(y_test, axis=1)
+        y_pred_labels = np.argmax(probabilities, axis=1)
+        smoothed_probs = np.zeros_like(probabilities)
+
+        for i in range(len(probabilities)):
+            start = max(0, i - window_size + 1)
+            end = i + 1
+            smoothed_probs[i] = np.mean(probabilities[start:end], axis=0)
+
+        smoothed_predictions = []
+        for i, probs in enumerate(smoothed_probs):
+            max_prob = np.max(probs)
+            if max_prob >= threshold:
+                smoothed_predictions.append(np.argmax(probs))
+            else:
+                # If below threshold, retain previous prediction or mark as uncertain (-1)
+                smoothed_predictions.append(smoothed_predictions[-1] if smoothed_predictions else 5)
+
+        # Calculate accuracy and other metrics
+        print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
+        print("F1 score with initial predictions :", round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
+        print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
+        print("F1 score with smoothed predictions: ", round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
+        print("\nClassification Report for initial predictions: :")
+        print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
+        print("\nClassification Report for smoothed predictions: :")
+        print(classification_report(y_test_labels, smoothed_predictions, target_names=class_labels))
+        
+        # Increase fold number
+        fold_no = fold_no + 1
+    
+    print('------------------------------------------------------------------------')
+    print('Score per fold')
+    for i in range(0, len(acc_per_fold)):
+        print('------------------------------------------------------------------------')
+        print(f'> Fold {i+1} - Loss: {loss_per_fold[i]} - Accuracy: {acc_per_fold[i]}%')
+    print('------------------------------------------------------------------------')
+    print('Average scores for all folds:')
+    print(f'> Accuracy: {np.mean(acc_per_fold)} (+- {np.std(acc_per_fold)})')
+    print(f'> Loss: {np.mean(loss_per_fold)}')
+    print('\n')
+
+
 
 def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
     """
@@ -390,7 +477,7 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_categ_accuracy"
+    filename = f"{time_required_ms}ms_5kfold"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
@@ -410,17 +497,18 @@ if __name__ == '__main__':
     unique, counts = np.unique(y_test, return_counts=True)
     print(np.asarray((unique, counts)).T)
 
-    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_train)
-    y_train = hot_encoder.transform(y_train)
-    y_test = hot_encoder.transform(y_test)
+    # hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    # hot_encoder = hot_encoder.fit(y_train)
+    # y_train = hot_encoder.transform(y_train)
+    # y_test = hot_encoder.transform(y_test)
 
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}') 
-        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
-                                                                class_labels, filename, train_model=True)
+        # y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test, chosen_model,
+                                                                # class_labels, filename, train_model=True)
+        cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename)
 
-        plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
+        # plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
