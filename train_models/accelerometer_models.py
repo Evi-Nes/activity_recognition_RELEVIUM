@@ -21,54 +21,6 @@ devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 
 
-def compute_frequency_features(data, sampling_rate=25):
-    """
-    Compute frequency domain features from the data.
-    """
-    # Apply FFT
-    fft_vals = np.abs(fft(data))
-    freqs = np.fft.fftfreq(len(data), d=1/sampling_rate)
-    
-    # Keep only positive frequencies
-    positive_indices = np.where(freqs > 0)[0]  # Find indices of positive frequencies
-    positive_freqs = freqs[positive_indices]
-    positive_fft_vals = fft_vals[positive_indices]
-    
-    # Ensure positive_freqs is not empty
-    if len(positive_freqs) == 0 or len(positive_fft_vals) == 0:
-        dominant_freq = 0
-        spectral_energy = 0
-        spectral_entropy = 0
-    else:
-        # Compute frequency domain features
-        dominant_freq = positive_freqs[np.argmax(positive_fft_vals)]
-        spectral_energy = np.sum(positive_fft_vals**2)
-        spectral_entropy = -np.sum((positive_fft_vals / np.sum(positive_fft_vals)) * 
-                                   np.log(positive_fft_vals / np.sum(positive_fft_vals) + 1e-12))
-    
-    return np.array([dominant_freq, spectral_energy, spectral_entropy])
-
-
-def compute_statistical_features(data):
-    """
-    Compute statistical features from the data.
-    """
-    mean_val = np.mean(data)
-    variance_val = np.var(data)
-    skewness_val = skew(data)
-    kurtosis_val = kurtosis(data)
-    min_val = np.min(data)
-    max_val = np.max(data)
-    rms_val = np.sqrt(np.mean(data**2))
-    
-    return np.hstack((
-        np.array([mean_val, variance_val]),
-        np.array([skewness_val]).flatten(),  # Ensure skewness is flattened
-        np.array([kurtosis_val]).flatten(),  # Ensure kurtosis is flattened
-        np.array([min_val, max_val, rms_val])
-    ))
-
-
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
     """
     This function plots the number of instances per activity (the distribution of the data).
@@ -90,6 +42,23 @@ def plot_data_distribution(y_train, y_test, unique_activities, filename):
     # plt.show()
 
 
+def display_data(data, unique_activities):
+    """
+    This function plots subsets of the data as timeseries, to visualize the form of the data.
+    """
+    if not os.path.exists('plots'):
+        os.makedirs('plots')
+
+    for activity in unique_activities:
+        subset = data[data['activity'] == activity].iloc[400:600]
+        subset = subset.drop(['activity'], axis=1)
+
+        subset.plot(subplots=True, figsize=(10, 10))
+        plt.xlabel('Time')
+        plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}_data.png')
+        # plt.show()
+
+
 def jitter_data(data, noise_level=0.01):
     """
     Adds random noise to accelerometer data.
@@ -106,6 +75,11 @@ def jitter_data(data, noise_level=0.01):
     noise = np.random.normal(loc=0.0, scale=noise_level * std_dev, size=data.shape)
     jittered_data = data + noise
     return jittered_data
+
+
+def scale_data(data, scale_range=(0.9, 1.1)):
+    scaling_factors = np.random.uniform(scale_range[0], scale_range[1], size=(data.shape[0], 1, 1))
+    return data * scaling_factors
 
 
 def create_sequences(X_data, Y_data, timesteps, unique_activities):
@@ -125,18 +99,7 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
             X_seq.append(window_data)            
             Y_seq.append(activity)
 
-            #  # Compute features
-            # freq_features = compute_frequency_features(window_data.flatten(), 25)
-            # stat_features = compute_statistical_features(window_data.flatten())
-
-            # # Combine features
-            # combined_features = np.hstack((freq_features, stat_features))
-            # features.append(combined_features)
-
     X_seq, Y_seq = np.array(X_seq), np.array(Y_seq)
-    # features = np.array(features)
-    # print(X_seq.shape)
-    # print(features.shape)
     return X_seq, Y_seq.reshape(-1, 1)
 
 
@@ -147,11 +110,11 @@ def train_test_split(path, timesteps, testing, scaler):
     """
     data = pd.read_csv(path)
     columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
-    if not testing:
-        scaler = RobustScaler()
-        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-    else:
-        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
+    # if not testing:
+    #     scaler = RobustScaler()
+    #     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    # else:
+    #     data[columns_to_scale] = scaler.transform(data[columns_to_scale])
 
     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
@@ -161,12 +124,6 @@ def train_test_split(path, timesteps, testing, scaler):
     # display_data(data, unique_activities)
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
-    # fscaler = StandardScaler()
-    # features = fscaler.fit_transform(features)
-    
-    # # Expand features to match the time steps
-    # features_expanded = np.repeat(features[:, np.newaxis, :], x_data.shape[1], axis=1)  # Shape: (9067, 250, 10)
-    # x_data = np.concatenate((x_data, features_expanded), axis=-1)  # Shape: (9067, 250, 13)
 
     if not testing:
         np.random.seed(42)
@@ -179,23 +136,6 @@ def train_test_split(path, timesteps, testing, scaler):
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
 
     return x_data, y_data, unique_activities, scaler
-
-
-def display_data(data, unique_activities):
-    """
-    This function plots subsets of the data as timeseries, to visualize the form of the data.
-    """
-    if not os.path.exists('plots'):
-        os.makedirs('plots')
-
-    for activity in unique_activities:
-        subset = data[data['activity'] == activity].iloc[400:600]
-        subset = subset.drop(['activity'], axis=1)
-
-        subset.plot(subplots=True, figsize=(10, 10))
-        plt.xlabel('Time')
-        plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}_data.png')
-        # plt.show()
 
 
 def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name):
@@ -266,7 +206,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=[keras.metrics.CategoricalAccuracy()])   #['acc']
 
-    model.fit(X_train, y_train, epochs=40, batch_size=64, validation_split=0.3, verbose=2)
+    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
     model.save(file_name)
 
     return model
@@ -495,7 +435,7 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_64batch"
+    filename = f"{time_required_ms}ms_5-fold_jittered_data_02"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
@@ -510,26 +450,28 @@ if __name__ == '__main__':
     X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
     X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)    
 
-    # # Add noise to original data
-    # X_train_jittered = jitter_data(X_train, noise_level=0.02)
-    # y_train_jittered = np.copy(y_train)  
-    # X_test_jittered = jitter_data(X_test, noise_level=0.02)
-    # y_test_jittered = np.copy(y_test)
+    # Add noise to original data
+    X_train_jittered = jitter_data(X_train, noise_level=0.02)
+    y_train_jittered = np.copy(y_train)  
 
-    # # Concatenate original and augmented data
-    # X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
-    # y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
-    # X_test_augmented = np.concatenate((X_test, X_test_jittered), axis=0)
-    # y_test_augmented = np.concatenate((y_test, y_test_jittered), axis=0)
+    # # Scale orginal data
+    # X_train_scaled = scale_data(X_train)
+    # y_train_scaled = np.copy(y_train)
+    
+    # Concatenate original and augmented data
+    # X_train_augmented = np.concatenate((X_train, X_train_scaled), axis=0)
+    # y_train_augmented = np.concatenate((y_train, y_train_scaled), axis=0)
+    X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
+    y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
 
-    # scaler = RobustScaler()
-    # X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
-    # X_train_flat = scaler.fit_transform(X_train_flat)
-    # X_train_scaled = X_train_flat.reshape(X_train_augmented.shape)
+    scaler = RobustScaler()
+    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    X_train_flat = scaler.fit_transform(X_train_flat)
+    X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
 
-    # X_test_flat = X_test_augmented.reshape(-1, X_test_augmented.shape[-1])
-    # X_test_flat = scaler.transform(X_test_flat)
-    # X_test_scaled = X_test_flat.reshape(X_test_augmented.shape)
+    X_test_flat = X_test.reshape(-1, X_test.shape[-1])
+    X_test_flat = scaler.transform(X_test_flat)
+    X_test = X_test_flat.reshape(X_test.shape)
 
     # unique, counts = np.unique(y_train_augmented, return_counts=True)
     # print(np.asarray((unique, counts)).T)
@@ -537,16 +479,16 @@ if __name__ == '__main__':
     # print(np.asarray((unique, counts)).T)
 
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_train)
-    y_train_augmented = hot_encoder.transform(y_train)
-    y_test_augmented = hot_encoder.transform(y_test)
+    hot_encoder = hot_encoder.fit(y_train_augmented)
+    y_train_augmented = hot_encoder.transform(y_train_augmented)
+    y_test = hot_encoder.transform(y_test)
 
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}') 
-        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train_augmented, X_test, y_test_augmented, chosen_model,
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
                                                                 class_labels, filename, train_model=True)
         # cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename)
 
