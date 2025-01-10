@@ -19,7 +19,9 @@ from scipy.stats import skew, kurtosis
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
-
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
     """
@@ -108,15 +110,17 @@ def train_test_split(path, timesteps, testing, scaler):
     This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
     :return: train_data, test_data, unique_activities
     """
-    data = pd.read_csv(path)
-    columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
-    # if not testing:
-    #     scaler = RobustScaler()
-    #     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-    # else:
-    #     data[columns_to_scale] = scaler.transform(data[columns_to_scale])
+    data = pd.read_csv(path, dtype={'user_id': str})
+    data = data.drop(columns=['timestamp', 'hr', 'Unnamed: 0'])
 
-    data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+    columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
+    if not testing:
+        scaler = RobustScaler()
+        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    else:
+        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
+
+    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     unique_activities = data['activity'].unique()
 
@@ -309,7 +313,7 @@ def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, clas
         model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
         history = model.fit(
                     X_train, y_train,
-                    batch_size=32,
+                    batch_size=64,
                     epochs=40,
                     verbose=2,
                 )
@@ -435,43 +439,43 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_5-fold_jittered_data_02"
+    filename = f"{time_required_ms}ms_5-fold_scaled_data"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
     print('\n')
-    
+
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
 
     # Implemented models
-    models = ['gru_2', 'cnn_gru']
+    models = ['cnn_gru']
     # models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
     scaler = RobustScaler()
     X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
     X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)    
 
-    # Add noise to original data
-    X_train_jittered = jitter_data(X_train, noise_level=0.02)
-    y_train_jittered = np.copy(y_train)  
+    # # Add noise to original data
+    # X_train_jittered = jitter_data(X_train, noise_level=0.02)
+    # y_train_jittered = np.copy(y_train)
 
     # # Scale orginal data
     # X_train_scaled = scale_data(X_train)
     # y_train_scaled = np.copy(y_train)
     
-    # Concatenate original and augmented data
-    # X_train_augmented = np.concatenate((X_train, X_train_scaled), axis=0)
-    # y_train_augmented = np.concatenate((y_train, y_train_scaled), axis=0)
-    X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
-    y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
+    # # Concatenate original and augmented data
+    # X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
+    # y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
+    # X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
+    # y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
 
-    scaler = RobustScaler()
-    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
-    X_train_flat = scaler.fit_transform(X_train_flat)
-    X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
-
-    X_test_flat = X_test.reshape(-1, X_test.shape[-1])
-    X_test_flat = scaler.transform(X_test_flat)
-    X_test = X_test_flat.reshape(X_test.shape)
+    # scaler = RobustScaler()
+    # X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    # X_train_flat = scaler.fit_transform(X_train_flat)
+    # X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
+    #
+    # X_test_flat = X_test.reshape(-1, X_test.shape[-1])
+    # X_test_flat = scaler.transform(X_test_flat)
+    # X_test = X_test_flat.reshape(X_test.shape)
 
     # unique, counts = np.unique(y_train_augmented, return_counts=True)
     # print(np.asarray((unique, counts)).T)
@@ -490,6 +494,6 @@ if __name__ == '__main__':
         print(f'\n{chosen_model=}') 
         # y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
         #                                                         class_labels, filename, train_model=True)
-        cross_validation_models(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model, class_labels, filename)
+        cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename)
 
         # plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
