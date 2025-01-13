@@ -23,6 +23,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
+
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
     """
     This function plots the number of instances per activity (the distribution of the data).
@@ -32,7 +33,9 @@ def plot_data_distribution(y_train, y_test, unique_activities, filename):
     y_train = pd.DataFrame(y_train)
     y_test = pd.DataFrame(y_test)
     data = pd.concat([y_train, y_test], ignore_index=True)
-    data = data.replace({'0': 'cycling', '1': 'dynamic_exercising', '2': 'lying', '3': 'running', '4': 'sitting', '5': 'standing', '6': 'static_exercising', '7': 'walking'})
+    data = data.replace(
+        {'0': 'cycling', '1': 'dynamic_exercising', '2': 'lying', '3': 'running', '4': 'sitting', '5': 'standing',
+         '6': 'static_exercising', '7': 'walking'})
     class_counts = data.value_counts()
 
     plt.figure(figsize=(10, 10))
@@ -64,11 +67,11 @@ def display_data(data, unique_activities):
 def jitter_data(data, noise_level=0.01):
     """
     Adds random noise to accelerometer data.
-    
+
     Parameters:
     - data: np.array of shape (num_samples, window_size, num_axes)
     - noise_level: float, standard deviation of Gaussian noise
-    
+
     Returns:
     - Jittered data
     """
@@ -98,7 +101,7 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
                 continue
 
             window_data = X_data.iloc[i:(i + timesteps)].values
-            X_seq.append(window_data)            
+            X_seq.append(window_data)
             Y_seq.append(activity)
 
     X_seq, Y_seq = np.array(X_seq), np.array(Y_seq)
@@ -127,7 +130,8 @@ def train_test_split(path, timesteps, testing, scaler):
     # uncomment this if you want to plot the data as timeseries
     # display_data(data, unique_activities)
 
-    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
+    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
+                                      unique_activities)
 
     # if not testing:
     #     np.random.seed(42)
@@ -208,7 +212,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
         model.add(keras.layers.Dropout(rate=0.4))
 
     model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=[keras.metrics.CategoricalAccuracy()])   #['acc']
+    model.compile(loss='categorical_crossentropy', optimizer='adam',
+                  metrics=[keras.metrics.CategoricalAccuracy()])  # ['acc']
 
     # model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
     # model.save(file_name)
@@ -262,9 +267,11 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
 
     # Calculate accuracy and other metrics
     print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
-    print("F1 score with initial predictions :", round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
+    print("F1 score with initial predictions :",
+          round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
     print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
-    print("F1 score with smoothed predictions: ", round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
+    print("F1 score with smoothed predictions: ",
+          round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
     print("\nClassification Report for initial predictions: :")
     print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
     print("\nClassification Report for smoothed predictions: :")
@@ -286,14 +293,13 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
 
 
 def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename):
-
     kf = StratifiedKFold(n_splits=5, shuffle=False, random_state=None)
     fold_no = 1
     X = np.concatenate((X_train, X_test), axis=0)
     y = np.concatenate((y_train, y_test), axis=0)
     acc_per_fold = []
     loss_per_fold = []
-    
+
     for train_index, test_index in kf.split(X, y):
         X_train = X[train_index]
         y_train = y[train_index]
@@ -312,17 +318,18 @@ def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, clas
         print(f'Training for fold {fold_no} ...')
         model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
         history = model.fit(
-                    X_train, y_train,
-                    batch_size=64,
-                    epochs=40,
-                    verbose=2,
-                )
+            X_train, y_train,
+            batch_size=64,
+            epochs=40,
+            verbose=2,
+        )
 
         scores = model.evaluate(X_test, y_test)
-        print(f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%')
+        print(
+            f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1] * 100}%')
         acc_per_fold.append(scores[1] * 100)
         loss_per_fold.append(scores[0])
-        
+
         # extra metrics
         probabilities = model.predict(X_test)
 
@@ -348,22 +355,25 @@ def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, clas
 
         # Calculate accuracy and other metrics
         print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
-        print("F1 score with initial predictions :", round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
-        print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
-        print("F1 score with smoothed predictions: ", round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
+        print("F1 score with initial predictions :",
+              round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
+        print("Accuracy with smoothed predictions: ",
+              round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
+        print("F1 score with smoothed predictions: ",
+              round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
         print("\nClassification Report for initial predictions: :")
         print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
         print("\nClassification Report for smoothed predictions: :")
         print(classification_report(y_test_labels, smoothed_predictions, target_names=class_labels))
-        
+
         # Increase fold number
         fold_no = fold_no + 1
-    
+
     print('------------------------------------------------------------------------')
     print('Score per fold')
     for i in range(0, len(acc_per_fold)):
         print('------------------------------------------------------------------------')
-        print(f'> Fold {i+1} - Loss: {loss_per_fold[i]} - Accuracy: {acc_per_fold[i]}%')
+        print(f'> Fold {i + 1} - Loss: {loss_per_fold[i]} - Accuracy: {acc_per_fold[i]}%')
     print('------------------------------------------------------------------------')
     print('Average scores for all folds:')
     print(f'> Accuracy: {np.mean(acc_per_fold)} (+- {np.std(acc_per_fold)})')
@@ -434,48 +444,49 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 10000
+    time_required_ms = 8000
     samples_required = int(time_required_ms * frequency / 1000)
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_5-fold_scaled_data"
+    filename = f"{time_required_ms}ms_5-fold"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
     print('\n')
 
-    class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
+    class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising',
+                    'walking']
 
     # Implemented models
     models = ['cnn_gru']
     # models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
     scaler = RobustScaler()
     X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
-    X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)    
+    X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)
 
-    # # Add noise to original data
-    # X_train_jittered = jitter_data(X_train, noise_level=0.02)
-    # y_train_jittered = np.copy(y_train)
+    # Add noise to original data
+    X_train_jittered = jitter_data(X_train, noise_level=0.02)
+    y_train_jittered = np.copy(y_train)
 
-    # # Scale orginal data
-    # X_train_scaled = scale_data(X_train)
-    # y_train_scaled = np.copy(y_train)
-    
-    # # Concatenate original and augmented data
-    # X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
-    # y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
+    # Scale orginal data
+    X_train_scaled = scale_data(X_train)
+    y_train_scaled = np.copy(y_train)
+
+    # Concatenate original and augmented data
+    X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
+    y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
     # X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
     # y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
 
-    # scaler = RobustScaler()
-    # X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
-    # X_train_flat = scaler.fit_transform(X_train_flat)
-    # X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
-    #
-    # X_test_flat = X_test.reshape(-1, X_test.shape[-1])
-    # X_test_flat = scaler.transform(X_test_flat)
-    # X_test = X_test_flat.reshape(X_test.shape)
+    scaler = RobustScaler()
+    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    X_train_flat = scaler.fit_transform(X_train_flat)
+    X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
+
+    X_test_flat = X_test.reshape(-1, X_test.shape[-1])
+    X_test_flat = scaler.transform(X_test_flat)
+    X_test = X_test_flat.reshape(X_test.shape)
 
     # unique, counts = np.unique(y_train_augmented, return_counts=True)
     # print(np.asarray((unique, counts)).T)
@@ -491,9 +502,9 @@ if __name__ == '__main__':
     # plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
-        print(f'\n{chosen_model=}') 
+        print(f'\n{chosen_model=}')
         # y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
         #                                                         class_labels, filename, train_model=True)
-        cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename)
+        cross_validation_models(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model, class_labels, filename)
 
         # plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
