@@ -215,7 +215,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     model.compile(loss='categorical_crossentropy', optimizer='adam',
                   metrics=[keras.metrics.CategoricalAccuracy()])  # ['acc']
 
-    model.fit(X_train, y_train, epochs=40, batch_size=64, validation_split=0.3, verbose=2)
+    model.fit(X_train, y_train, epochs=40, batch_size=64, validation_split=0.2, verbose=2)
     model.save(file_name)
 
     return model
@@ -232,10 +232,10 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
         os.makedirs(f'files_{filename}/saved_models_{filename}')
 
     file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.h5'
+    # file_name = f'files_{filename}/acc_{chosen_model}_model_1.h5'
 
     if train_model:
         input_shape = (X_train.shape[1], X_train.shape[2])
-        # input_shape = (timesteps, features)
         model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
     else:
         model = keras.models.load_model(file_name)
@@ -292,11 +292,11 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     return y_test_labels, y_pred_labels, smoothed_predictions
 
 
-def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename):
-    kf = StratifiedKFold(n_splits=5, shuffle=False, random_state=None)
+def cross_validation_models(X_train_init, y_train_init, X_test_init, y_test_init, chosen_model, class_labels, filename):
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=None)
     fold_no = 1
-    X = np.concatenate((X_train, X_test), axis=0)
-    y = np.concatenate((y_train, y_test), axis=0)
+    X = np.concatenate((X_train_init, X_test_init), axis=0)
+    y = np.concatenate((y_train_init, y_test_init), axis=0)
     acc_per_fold = []
     loss_per_fold = []
 
@@ -305,6 +305,11 @@ def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, clas
         y_train = y[train_index]
         X_test = X[test_index]
         y_test = y[test_index]
+
+        unique, counts = np.unique(y_train, return_counts=True)
+        print(np.asarray((unique, counts)).T)
+        unique, counts = np.unique(y_test, return_counts=True)
+        print(np.asarray((unique, counts)).T)
 
         hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
         hot_encoder = hot_encoder.fit(y_train)
@@ -321,9 +326,11 @@ def cross_validation_models(X_train, y_train, X_test, y_test, chosen_model, clas
             X_train, y_train,
             batch_size=64,
             epochs=40,
+            validation_split=0.2, 
             verbose=2,
         )
 
+        model.save(f"files_{filename}/acc_{chosen_model}_model_{fold_no}.h5")
         scores = model.evaluate(X_test, y_test)
         print(
             f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1] * 100}%')
@@ -444,12 +451,14 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 1000
+    time_required_ms = 8000
     samples_required = int(time_required_ms * frequency / 1000)
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms"
+    filename = f"{time_required_ms}ms_40epochs"
+    # if not os.path.exists(f'files_{filename}'):
+    #     os.makedirs(f'files_{filename}')
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
@@ -459,8 +468,8 @@ if __name__ == '__main__':
                     'walking']
 
     # Implemented models
-    # models = ['cnn_gru']
-    models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    # models = ['cnn_gru', 'cnn_cnn']
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn']
     scaler = RobustScaler()
     X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
     X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)

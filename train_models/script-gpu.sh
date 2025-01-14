@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -c4 --mem 12G --gres shard:rtx4090:18 -t 0-50
+#SBATCH -c4 --mem 12G --gres shard:20 -t 0-50
 
 cd /mnt/cephfs/home/nestoropo/activity_recognition_RELEVIUM/train_models
 
