@@ -133,12 +133,12 @@ def train_test_split(path, timesteps, testing, scaler):
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
                                       unique_activities)
 
-    # if not testing:
-    #     np.random.seed(42)
-    #     random = np.arange(0, len(y_data))
-    #     np.random.shuffle(random)
-    #     x_data = x_data[random]
-    #     y_data = y_data[random]
+    if not testing:
+        np.random.seed(42)
+        random = np.arange(0, len(y_data))
+        np.random.shuffle(random)
+        x_data = x_data[random]
+        y_data = y_data[random]
 
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
@@ -215,8 +215,8 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     model.compile(loss='categorical_crossentropy', optimizer='adam',
                   metrics=[keras.metrics.CategoricalAccuracy()])  # ['acc']
 
-    # model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
-    # model.save(file_name)
+    model.fit(X_train, y_train, epochs=40, batch_size=64, validation_split=0.3, verbose=2)
+    model.save(file_name)
 
     return model
 
@@ -449,7 +449,7 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_5-fold"
+    filename = f"{time_required_ms}ms"
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
@@ -459,8 +459,8 @@ if __name__ == '__main__':
                     'walking']
 
     # Implemented models
-    models = ['cnn_gru']
-    # models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    # models = ['cnn_gru']
+    models = ['gru_2', 'cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
     scaler = RobustScaler()
     X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
     X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)
@@ -493,18 +493,18 @@ if __name__ == '__main__':
     # unique, counts = np.unique(y_test_augmented, return_counts=True)
     # print(np.asarray((unique, counts)).T)
 
-    # hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    # hot_encoder = hot_encoder.fit(y_train_augmented)
-    # y_train_augmented = hot_encoder.transform(y_train_augmented)
-    # y_test = hot_encoder.transform(y_test)
+    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    hot_encoder = hot_encoder.fit(y_train_augmented)
+    y_train_augmented = hot_encoder.transform(y_train_augmented)
+    y_test = hot_encoder.transform(y_test)
 
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(y_train, y_test, unique_activities, filename)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
-        # y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
-        #                                                         class_labels, filename, train_model=True)
-        cross_validation_models(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model, class_labels, filename)
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
+                                                                class_labels, filename, train_model=True)
+        # cross_validation_models(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model, class_labels, filename)
 
-        # plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
+        plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
