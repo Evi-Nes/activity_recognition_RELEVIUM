@@ -21,7 +21,7 @@ devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+# print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
@@ -108,21 +108,13 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
-def train_test_split(path, timesteps, testing, scaler):
+def train_test_split(path, timesteps, testing):
     """
     This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
     :return: train_data, test_data, unique_activities
     """
-    data = pd.read_csv(path, dtype={'user_id': str})
+    data = pd.read_csv(path)
     data = data.drop(columns=['timestamp', 'hr', 'Unnamed: 0'])
-
-    # columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
-    # if not testing:
-    #     scaler = RobustScaler()
-    #     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-    # else:
-    #     data[columns_to_scale] = scaler.transform(data[columns_to_scale])
-
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     unique_activities = data['activity'].unique()
@@ -143,7 +135,46 @@ def train_test_split(path, timesteps, testing, scaler):
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
 
-    return x_data, y_data, unique_activities, scaler
+    return x_data, y_data, unique_activities
+
+
+def jittering_data(X_train, y_train):
+    # Add noise to original data
+    X_train_jittered = jitter_data(X_train, noise_level=0.02)
+    y_train_jittered = np.copy(y_train)
+
+    # Scale original data
+    X_train_scaled = scale_data(X_train)
+    y_train_scaled = np.copy(y_train)
+
+    # Concatenate original and augmented data
+    X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
+    y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
+
+    return X_train_augmented, y_train_augmented
+
+
+def preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test):
+    scaler = RobustScaler()
+    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    X_train_flat = scaler.fit_transform(X_train_flat)
+    X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
+
+    X_test_flat = X_test.reshape(-1, X_test.shape[-1])
+    X_test_flat = scaler.transform(X_test_flat)
+    X_test = X_test_flat.reshape(X_test.shape)
+    
+    # unique, counts = np.unique(y_train_augmented, return_counts=True)
+    # print(np.asarray((unique, counts)).T)
+    # unique, counts = np.unique(y_test_augmented, return_counts=True)
+    # print(np.asarray((unique, counts)).T)
+
+    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    hot_encoder = hot_encoder.fit(y_train_augmented)
+    y_train_augmented = hot_encoder.transform(y_train_augmented)
+    y_test = hot_encoder.transform(y_test)
+
+    return X_train_augmented, y_train_augmented, X_test, y_test
 
 
 def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name):
@@ -215,7 +246,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     model.compile(loss='categorical_crossentropy', optimizer='adam',
                   metrics=[keras.metrics.CategoricalAccuracy()])  # ['acc']
 
-    model.fit(X_train, y_train, epochs=40, batch_size=64, validation_split=0.2, verbose=2)
+    model.fit(X_train, y_train, epochs=30, batch_size=64, validation_split=0.2, verbose=2)
     model.save(file_name)
 
     return model
@@ -451,61 +482,26 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 8000
+    time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
+    class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_40epochs"
-    # if not os.path.exists(f'files_{filename}'):
-    #     os.makedirs(f'files_{filename}')
+    filename = f"{time_required_ms}ms"
+
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
-    print('\n')
-
-    class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising',
-                    'walking']
 
     # Implemented models
-    # models = ['cnn_gru', 'cnn_cnn']
-    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn']
-    scaler = RobustScaler()
-    X_train, y_train, unique_activities, scaler = train_test_split(train_path, samples_required, False, scaler)
-    X_test, y_test, _, _ = train_test_split(test_path, samples_required, True, scaler)
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
+    X_test, y_test, _ = train_test_split(test_path, samples_required, True)
 
-    # Add noise to original data
-    X_train_jittered = jitter_data(X_train, noise_level=0.02)
-    y_train_jittered = np.copy(y_train)
-
-    # Scale original data
-    X_train_scaled = scale_data(X_train)
-    y_train_scaled = np.copy(y_train)
-
-    # Concatenate original and augmented data
-    X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
-    y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
-    # X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
-    # y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
-
-    scaler = RobustScaler()
-    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
-    X_train_flat = scaler.fit_transform(X_train_flat)
-    X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
-
-    X_test_flat = X_test.reshape(-1, X_test.shape[-1])
-    X_test_flat = scaler.transform(X_test_flat)
-    X_test = X_test_flat.reshape(X_test.shape)
-
-    # unique, counts = np.unique(y_train_augmented, return_counts=True)
-    # print(np.asarray((unique, counts)).T)
-    # unique, counts = np.unique(y_test_augmented, return_counts=True)
-    # print(np.asarray((unique, counts)).T)
-
-    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_train_augmented)
-    y_train_augmented = hot_encoder.transform(y_train_augmented)
-    y_test = hot_encoder.transform(y_test)
+    # Preprocess original and augmented data
+    X_train_augmented, y_train_augmented = jittering_data(X_train, y_train)
+    X_train_augmented, y_train_augmented, X_test, y_test = preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test)
 
     # Uncomment if you want to plot the distribution of the data
     # plot_data_distribution(y_train, y_test, unique_activities, filename)
