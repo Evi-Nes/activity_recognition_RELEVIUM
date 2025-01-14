@@ -116,12 +116,12 @@ def train_test_split(path, timesteps, testing, scaler):
     data = pd.read_csv(path, dtype={'user_id': str})
     data = data.drop(columns=['timestamp', 'hr', 'Unnamed: 0'])
 
-    columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
-    if not testing:
-        scaler = RobustScaler()
-        data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-    else:
-        data[columns_to_scale] = scaler.transform(data[columns_to_scale])
+    # columns_to_scale = ['accel_x', 'accel_y', 'accel_z']
+    # if not testing:
+    #     scaler = RobustScaler()
+    #     data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    # else:
+    #     data[columns_to_scale] = scaler.transform(data[columns_to_scale])
 
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
@@ -444,7 +444,7 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 8000
+    time_required_ms = 1000
     samples_required = int(time_required_ms * frequency / 1000)
 
     train_path = "../process_datasets/train_data.csv"
@@ -469,7 +469,7 @@ if __name__ == '__main__':
     X_train_jittered = jitter_data(X_train, noise_level=0.02)
     y_train_jittered = np.copy(y_train)
 
-    # Scale orginal data
+    # Scale original data
     X_train_scaled = scale_data(X_train)
     y_train_scaled = np.copy(y_train)
 
