@@ -15,6 +15,7 @@ from sklearn import preprocessing
 from sklearn.model_selection import StratifiedKFold
 from scipy.fft import fft
 from scipy.stats import skew, kurtosis
+import sys
 
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
@@ -22,7 +23,7 @@ contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 # print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-
+np.set_printoptions(threshold=sys.maxsize)
 
 def create_sequences(X_data, Y_data, timesteps, unique_activities):
     """
@@ -51,8 +52,9 @@ def train_test_split_acc(path, timesteps):
     """
     data = pd.read_csv(path)
     data = data.drop(columns=['timestamp', 'hr', 'Unnamed: 0'])
-    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+    # data = data.dropna(subset=['gyro_x', 'gyro_y', 'gyro_z'])
     data = data.dropna()
+    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     unique_activities = data['activity'].unique()
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
@@ -171,7 +173,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     return model
 
 
-def train_sequential_model(X_train_augmented, y_train_augmented, X_test_acc, y_test_acc, X_test_gyro, y_test_gyro, chosen_model, class_labels, filename, train_model):
+def train_sequential_model(X_train_augmented, y_train_augmented, X_test_acc, y_test_acc, X_train_augmented_gyro, y_train_augmented_gyro, X_test_gyro, y_test_gyro, class_labels):
     """
     This function is used to train the sequential models. If train_model == True, then it trains the model using
     X-train, y_train, else it loads the model from the existing file. Then, it evaluates the model and prints the
@@ -179,27 +181,43 @@ def train_sequential_model(X_train_augmented, y_train_augmented, X_test_acc, y_t
     :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
     """
 
-    file_name_acc = 'files_10000ms_final/saved_models_10000ms_final/acc_cnn_cnn_lstm_model.h5'
+    # file_name_acc = 'files_10000ms_final/saved_models_10000ms_final/acc_cnn_cnn_lstm_model.h5'
+    file_name_acc = 'files_10000ms_clean/saved_models_10000ms_clean/acc_cnn_cnn_lstm_model.h5'
     model_acc = keras.models.load_model(file_name_acc)
     loss, accuracy = model_acc.evaluate(X_train_augmented, y_train_augmented)
     print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
 
     file_name_gyro = 'files_10000ms_final_gyro/saved_models_10000ms_final_gyro/gyro_cnn_cnn_lstm_model.h5'
-    # model_gyro = keras.models.load_model(file_name_gyro)
+    model_gyro = keras.models.load_model(file_name_gyro)
+    loss, accuracy = model_gyro.evaluate(X_train_augmented_gyro, y_train_augmented_gyro)
+    print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
 
     probabilities_acc = model_acc.predict(X_test_acc)
-    # probabilities_gyro = model_gyro.predict(X_test_gyro)
+    probabilities_gyro = model_gyro.predict(X_test_gyro)
+    # probabilities_comb = (probabilities_acc + probabilities_gyro) / 2
+
+    avg_prob_acc = np.mean(probabilities_acc, axis=0)  
+    avg_prob_gyro = np.mean(probabilities_gyro, axis=0) 
+
+    # Calculate class-specific weights (based on the average probabilities)
+
+    weights_acc_class = avg_prob_acc / (avg_prob_acc + avg_prob_gyro)
+    weights_gyro_class = avg_prob_gyro / (avg_prob_acc + avg_prob_gyro)
+    print(weights_acc_class, weights_gyro_class)
+
+    probabilities_comb = (weights_acc_class * probabilities_acc +
+                            weights_gyro_class * probabilities_gyro)
 
     window_size = 3
     threshold = 0.8
     y_test_labels = np.argmax(y_test_acc, axis=1)
-    y_pred_labels = np.argmax(probabilities_acc, axis=1)
-    smoothed_probs = np.zeros_like(probabilities_acc)
+    y_pred_labels = np.argmax(probabilities_comb, axis=1)
+    smoothed_probs = np.zeros_like(probabilities_comb)
 
-    for i in range(len(probabilities_acc)):
+    for i in range(len(probabilities_comb)):
         start = max(0, i - window_size + 1)
         end = i + 1
-        smoothed_probs[i] = np.mean(probabilities_acc[start:end], axis=0)
+        smoothed_probs[i] = np.mean(probabilities_comb[start:end], axis=0)
 
     smoothed_predictions = []
     for i, probs in enumerate(smoothed_probs):
@@ -315,19 +333,17 @@ if __name__ == '__main__':
     # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train_acc, y_train_acc, unique_activities = train_test_split_acc(train_path, samples_required)
     X_test_acc, y_test_acc, unique_activities = train_test_split_acc(test_path, samples_required)
+    X_train_gyro, y_train_gyro, unique_activities = train_test_split_gyro(train_path, samples_required)
     X_test_gyro, y_test_gyro, unique_activities = train_test_split_gyro(test_path, samples_required)
+    print(X_test_acc.shape, X_test_gyro.shape)
 
     # Preprocess original and augmented data
     X_train_augmented, y_train_augmented, X_test_acc, y_test_acc = preprocessing_data(X_train_acc, y_train_acc, X_test_acc, y_test_acc)
-    print(y_test_acc)
-    # X_test_gyro, y_test_gyro = preprocessing_data(X_train_augmented, y_train_augmented, X_test_gyro, y_test_gyro)
-    # print(y_test_gyro)
-    X_test_gyro = []
-    y_test_gyro = []
-
+    X_train_augmented_gyro, y_train_augmented_gyro, X_test_gyro, y_test_gyro = preprocessing_data(X_train_gyro, y_train_gyro, X_test_gyro, y_test_gyro)
+  
     for chosen_model in models:
         print(f'\n{chosen_model=}')
-        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test_acc, y_test_acc, X_test_gyro, y_test_gyro, chosen_model,
-                                                                class_labels, filename, train_model=False)
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test_acc, y_test_acc, X_train_augmented_gyro, y_train_augmented_gyro, X_test_gyro, y_test_gyro,
+                                                                class_labels)
 
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
