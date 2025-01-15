@@ -95,7 +95,6 @@ def train_test_split(path, timesteps, to_balance):
     return X_train, y_train, X_test_restored, y_test_restored, unique_activities
 
 
-
 def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name):
     """
     This function is used to create the sequential models. Given the chosen_model param, it chooses the appropriate
@@ -177,10 +176,10 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     classification report.
     :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
     """
-    if not os.path.exists(f'saved_models_{filename}'):
-        os.makedirs(f'saved_models_{filename}')
+    if not os.path.exists(f'files_{filename}/saved_models_{filename}'):
+        os.makedirs(f'files_{filename}/saved_models_{filename}')
 
-    file_name = f'saved_models_{filename}/acc_{chosen_model}_sleeping_model.h5'
+    file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_sleeping_model.h5'
 
     if train_model:
         input_shape = (X_train.shape[1], X_train.shape[2])
@@ -315,15 +314,15 @@ if __name__ == '__main__':
     print(f'Frequency: {frequency} Hz \n')
 
     if to_balance:
-        filename = f"{frequency}Hz_2_classes_balanced"
+        filename = f"sleeping_{frequency}Hz_2_classes_balanced"
     else:
-        filename = f"{frequency}Hz_2_classes_unbalanced"
+        filename = f"sleeping_{frequency}Hz_2_classes_unbalanced"
 
     class_labels = ['lying', 'sleeping']
     # class_labels = ['W', 'N1', 'N2', 'N3', 'R']
 
     # Implemented models
-    models = ['gru_2']
+    models = ['cnn_cnn_lstm']
     # models = ['gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
     X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required, to_balance)
 
