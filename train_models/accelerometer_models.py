@@ -94,7 +94,6 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     :returns: data as timeseries
     """
     X_seq, Y_seq = [], []
-    features = []
     for activity in unique_activities:
         for i in range(0, len(X_data) - timesteps, timesteps // 2):
             if Y_data.iloc[i] != activity or Y_data.iloc[i + timesteps] != activity:
@@ -115,8 +114,8 @@ def train_test_split(path, timesteps, testing):
     """
     data = pd.read_csv(path)
     data = data.drop(columns=['timestamp', 'hr', 'Unnamed: 0'])
-    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
+    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     unique_activities = data['activity'].unique()
 
     # uncomment this if you want to plot the data as timeseries
@@ -488,17 +487,18 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms"
+    filename = f"{time_required_ms}ms_clean"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    models = ['cnn_cnn_lstm']
+    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_test, y_test, _ = train_test_split(test_path, samples_required, True)
-
+    print(X_test.shape)
     # Preprocess original and augmented data
     X_train_augmented, y_train_augmented = jittering_data(X_train, y_train)
     X_train_augmented, y_train_augmented, X_test, y_test = preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test)
@@ -509,7 +509,7 @@ if __name__ == '__main__':
     for chosen_model in models:
         print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
-                                                                class_labels, filename, train_model=True)
+                                                                class_labels, filename, train_model=False)
         # cross_validation_models(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model, class_labels, filename)
 
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
