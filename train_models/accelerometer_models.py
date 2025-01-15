@@ -114,8 +114,8 @@ def train_test_split(path, timesteps, testing):
     """
     data = pd.read_csv(path)
     data = data.drop(columns=['timestamp', 'hr', 'Unnamed: 0'])
-    data = data.dropna()
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+    data = data.dropna()
     unique_activities = data['activity'].unique()
 
     # uncomment this if you want to plot the data as timeseries
@@ -487,18 +487,18 @@ if __name__ == '__main__':
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_clean"
+    filename = f"{time_required_ms}ms"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    models = ['cnn_cnn_lstm']
-    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    # models = ['cnn_cnn_lstm']
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_test, y_test, _ = train_test_split(test_path, samples_required, True)
-    print(X_test.shape)
+
     # Preprocess original and augmented data
     X_train_augmented, y_train_augmented = jittering_data(X_train, y_train)
     X_train_augmented, y_train_augmented, X_test, y_test = preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test)
