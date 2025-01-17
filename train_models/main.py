@@ -267,6 +267,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
 
+    smoothed_predictions = np.array(smoothed_predictions)
     return y_test_labels, y_pred_labels, smoothed_predictions
 
 
@@ -446,6 +447,7 @@ if __name__ == '__main__':
         # single_labels = np.argmax(y_pred_labels, axis=1)
 
         # Remove consecutive duplicates
+        print('For initial predictions')
         grouped_labels = [y_pred_labels[0]]
         for label in y_pred_labels[1:]:
             if label != grouped_labels[-1]:
@@ -453,10 +455,23 @@ if __name__ == '__main__':
 
         grouped_labels = np.array(grouped_labels)
         grouped_class_labels = [class_labels[label] for label in grouped_labels]
-        
         print("Original labels:", y_pred_labels)
         print(y_pred_labels.shape)
         print("Grouped labels:", grouped_labels)
         print(grouped_labels.shape)
         print("Grouped class labels:", grouped_class_labels)
 
+        # For smoothed predictions
+        print('\n For smoothed predictions')
+        grouped_labels = [smoothed_predictions[0]]
+        for label in smoothed_predictions[1:]:
+            if label != grouped_labels[-1]:
+                grouped_labels.append(label)
+
+        grouped_labels = np.array(grouped_labels)
+        grouped_class_labels = [class_labels[label] for label in grouped_labels]
+        print("Original labels:", smoothed_predictions)
+        print(smoothed_predictions.shape)
+        print("Grouped labels:", grouped_labels)
+        print(grouped_labels.shape)
+        print("Grouped class labels:", grouped_class_labels)
