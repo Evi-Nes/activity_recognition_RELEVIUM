@@ -331,7 +331,7 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
-    category_labels = ['exercising', 'idle', 'walking', 'sleeping']
+    category_labels = ['exercising', 'idle', 'sleeping', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
     filename = f"{time_required_ms}ms_9_classes"
@@ -341,8 +341,8 @@ if __name__ == '__main__':
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    # models = ['cnn_cnn_lstm']
-    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    models = ['cnn_cnn_lstm']
+    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_test, y_test, _ = train_test_split(test_path, samples_required, True)
 
@@ -356,6 +356,29 @@ if __name__ == '__main__':
                                                                 class_labels, filename, train_model=False)
 
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
+
+        # Group activities
+        # print('\nFor y_test labels')
+        grouped_labels = [y_test_labels[0]]
+        for label in y_test_labels[1:]:
+            if label != grouped_labels[-1]:
+                grouped_labels.append(label)
+
+        grouped_y_labels = np.array(grouped_labels)
+        grouped_class_y_labels = [class_labels[label] for label in grouped_y_labels]
+        # print("Grouped class y labels:", grouped_class_y_labels)
+        # print(len(grouped_class_y_labels))
+
+        # print('\nFor initial predictions')
+        grouped_labels = [y_pred_labels[0]]
+        for label in y_pred_labels[1:]:
+            if label != grouped_labels[-1]:
+                grouped_labels.append(label)
+
+        grouped_labels = np.array(grouped_labels)
+        grouped_class_labels = [class_labels[label] for label in grouped_labels]
+        # print("Grouped class y labels:", grouped_class_labels)
+        # print(len(grouped_class_labels))
 
         # For y_test labels
         predicted_y_categories = []
@@ -376,7 +399,7 @@ if __name__ == '__main__':
 
         predicted_y_categories = np.array(predicted_y_categories)
         print(predicted_y_categories)
-        print(len(predicted_y_categories))
+        # print(len(predicted_y_categories))
 
         # For initial predictions
         predicted_categories = []
@@ -393,7 +416,7 @@ if __name__ == '__main__':
 
         predicted_categories = np.array(predicted_categories)
         print(predicted_categories)
-        print(len(predicted_categories))
+        # print(len(predicted_categories))
 
         print("\nAccuracy with initial predictions: ", round(100 * accuracy_score(predicted_y_categories, predicted_categories), 2))
         print("F1 score with initial predictions :", round(100 * f1_score(predicted_y_categories, predicted_categories, average='weighted'), 2))
@@ -401,36 +424,4 @@ if __name__ == '__main__':
         print("\nClassification Report for initial predictions: :")
         print(classification_report(predicted_y_categories, predicted_categories, target_names=category_labels))
 
-
-        print('\nFor y_test labels')
-        grouped_labels = [y_test_labels[0]]
-        for label in y_test_labels[1:]:
-            if label != grouped_labels[-1]:
-                grouped_labels.append(label)
-
-        grouped_y_labels = np.array(grouped_labels)
-        grouped_class_y_labels = [class_labels[label] for label in grouped_y_labels]
-        print("Grouped class y labels:", grouped_class_y_labels)
-        print(len(grouped_class_y_labels))
-
-
-        print('\nFor initial predictions')
-        grouped_labels = [y_pred_labels[0]]
-        for label in y_pred_labels[1:]:
-            if label != grouped_labels[-1]:
-                grouped_labels.append(label)
-
-        grouped_labels = np.array(grouped_labels)
-        grouped_class_labels = [class_labels[label] for label in grouped_labels]
-        print("Grouped class y labels:", grouped_class_labels)
-        print(len(grouped_class_labels))
-
-        # print('\nFor smoothed predictions')
-        # grouped_labels = [smoothed_predictions[0]]
-        # for label in smoothed_predictions[1:]:
-        #     if label != grouped_labels[-1]:
-        #         grouped_labels.append(label)
-
-        # grouped_labels = np.array(grouped_labels)
-        # grouped_class_labels = [class_labels[label] for label in grouped_labels]
-        # print("Grouped class labels:", grouped_class_labels)
+        # plot_confusion_matrix(predicted_y_categories, predicted_categories, smoothed_predictions, category_labels, chosen_model, filename)
