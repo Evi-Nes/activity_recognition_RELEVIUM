@@ -79,8 +79,8 @@ def train_test_split(path, timesteps, testing):
         x_data = x_data[random]
         y_data = y_data[random]
 
-    for activity in unique_activities:
-        print(f'Activity {activity}: {len(y_data[y_data == activity])}')
+    # for activity in unique_activities:
+    #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
 
     return x_data, y_data, unique_activities
 
@@ -260,7 +260,8 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     activity_predictions_smoothed = np.empty(len(smoothed_predictions), dtype=object)
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
-
+    
+    smoothed_predictions = np.array(smoothed_predictions)
     return y_test_labels, y_pred_labels, smoothed_predictions
 
 
@@ -330,7 +331,7 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
-
+    category_labels = ['exercising', 'idle', 'walking', 'sleeping']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
     filename = f"{time_required_ms}ms_9_classes"
@@ -356,3 +357,80 @@ if __name__ == '__main__':
 
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
+        # For y_test labels
+        predicted_y_categories = []
+        exercising_activities = ['running', 'cycling', 'static_exercising', 'dynamic_exercising']
+        idle_activities = ['sitting', 'lying']
+        standing_activities = ['walking', 'standing']
+        y_test_labels = [class_labels[label] for label in y_test_labels]
+
+        for activity in y_test_labels:
+            if activity in exercising_activities:
+                predicted_y_categories.append('exercising')
+            elif activity in idle_activities:
+                predicted_y_categories.append('idle')
+            elif activity in standing_activities:
+                predicted_y_categories.append('walking')
+            else:
+                predicted_y_categories.append(activity)
+
+        predicted_y_categories = np.array(predicted_y_categories)
+        print(predicted_y_categories)
+        print(len(predicted_y_categories))
+
+        # For initial predictions
+        predicted_categories = []
+        y_pred_labels = [class_labels[label] for label in y_pred_labels]
+        for activity in y_pred_labels:
+            if activity in exercising_activities:
+                predicted_categories.append('exercising')
+            elif activity in idle_activities:
+                predicted_categories.append('idle')
+            elif activity in standing_activities:
+                predicted_categories.append('walking')
+            else:
+                predicted_categories.append(activity)
+
+        predicted_categories = np.array(predicted_categories)
+        print(predicted_categories)
+        print(len(predicted_categories))
+
+        print("\nAccuracy with initial predictions: ", round(100 * accuracy_score(predicted_y_categories, predicted_categories), 2))
+        print("F1 score with initial predictions :", round(100 * f1_score(predicted_y_categories, predicted_categories, average='weighted'), 2))
+
+        print("\nClassification Report for initial predictions: :")
+        print(classification_report(predicted_y_categories, predicted_categories, target_names=category_labels))
+
+
+        print('\nFor y_test labels')
+        grouped_labels = [y_test_labels[0]]
+        for label in y_test_labels[1:]:
+            if label != grouped_labels[-1]:
+                grouped_labels.append(label)
+
+        grouped_y_labels = np.array(grouped_labels)
+        grouped_class_y_labels = [class_labels[label] for label in grouped_y_labels]
+        print("Grouped class y labels:", grouped_class_y_labels)
+        print(len(grouped_class_y_labels))
+
+
+        print('\nFor initial predictions')
+        grouped_labels = [y_pred_labels[0]]
+        for label in y_pred_labels[1:]:
+            if label != grouped_labels[-1]:
+                grouped_labels.append(label)
+
+        grouped_labels = np.array(grouped_labels)
+        grouped_class_labels = [class_labels[label] for label in grouped_labels]
+        print("Grouped class y labels:", grouped_class_labels)
+        print(len(grouped_class_labels))
+
+        # print('\nFor smoothed predictions')
+        # grouped_labels = [smoothed_predictions[0]]
+        # for label in smoothed_predictions[1:]:
+        #     if label != grouped_labels[-1]:
+        #         grouped_labels.append(label)
+
+        # grouped_labels = np.array(grouped_labels)
+        # grouped_class_labels = [class_labels[label] for label in grouped_labels]
+        # print("Grouped class labels:", grouped_class_labels)
