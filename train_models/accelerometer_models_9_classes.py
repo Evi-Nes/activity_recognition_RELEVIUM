@@ -16,18 +16,12 @@ contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 
-def jitter_data(data, noise_level=0.01):
+def jitter_data(data, noise_level=0.02):
     """
     Adds random noise to accelerometer data.
-
-    Parameters:
-    - data: np.array of shape (num_samples, window_size, num_axes)
-    - noise_level: float, standard deviation of Gaussian noise
-
     Returns:
     - Jittered data
     """
-    # noise = np.random.normal(0, noise_level, size=data.shape)
     std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
     noise = np.random.normal(loc=0.0, scale=noise_level * std_dev, size=data.shape)
     jittered_data = data + noise
@@ -85,7 +79,7 @@ def train_test_split(path, timesteps, testing):
     return x_data, y_data, unique_activities
 
 
-def jittering_data(X_train, y_train):
+def augment_data(X_train, y_train):
     # Add noise to original data
     X_train_jittered = jitter_data(X_train, noise_level=0.02)
     y_train_jittered = np.copy(y_train)
@@ -101,7 +95,7 @@ def jittering_data(X_train, y_train):
     return X_train_augmented, y_train_augmented
 
 
-def preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test):
+def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test):
     scaler = RobustScaler()
     X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
     X_train_flat = scaler.fit_transform(X_train_flat)
@@ -244,6 +238,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
     print("F1 score with smoothed predictions: ",
           round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
+    
     print("\nClassification Report for initial predictions: :")
     print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
     print("\nClassification Report for smoothed predictions: :")
@@ -326,6 +321,47 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
         plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
 
 
+def merge_activity_periods(y_labels, class_labels):
+    """
+    This function takes the activity labels and combine activities with the same label to create larger periods of a certain activity.
+    """
+    grouped_labels = [y_labels[0]]
+    for label in y_labels[1:]:
+        if label != grouped_labels[-1]:
+            grouped_labels.append(label)
+
+    grouped_labels = np.array(grouped_labels)
+    grouped_class_labels = [class_labels[label] for label in grouped_labels]
+    # print(len(grouped_class_labels)
+    return grouped_class_labels
+
+
+def group_categories(y_labels, class_labels):
+    """
+    This function takes the activity labels and groups them to more generic categories, exercising, idle, walking, sleeping
+    """
+    predicted_categories = []
+    exercising_activities = ['running', 'cycling', 'static_exercising', 'dynamic_exercising']
+    idle_activities = ['sitting', 'lying']
+    standing_activities = ['walking', 'standing']
+    y_labels = [class_labels[label] for label in y_labels]
+
+    for activity in y_labels:
+        if activity in exercising_activities:
+            predicted_categories.append('exercising')
+        elif activity in idle_activities:
+            predicted_categories.append('idle')
+        elif activity in standing_activities:
+            predicted_categories.append('walking')
+        else:
+            predicted_categories.append(activity)
+
+    predicted_categories = np.array(predicted_categories)
+    print(predicted_categories)
+
+    return predicted_categories
+    
+
 if __name__ == '__main__':
     frequency = 25
     time_required_ms = 10000
@@ -347,80 +383,25 @@ if __name__ == '__main__':
     X_test, y_test, _ = train_test_split(test_path, samples_required, True)
 
     # Preprocess original and augmented data
-    X_train_augmented, y_train_augmented = jittering_data(X_train, y_train)
-    X_train_augmented, y_train_augmented, X_test, y_test = preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test)
+    X_train_augmented, y_train_augmented = augment_data(X_train, y_train)
+    X_train_augmented, y_train_augmented, X_test, y_test = preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
                                                                 class_labels, filename, train_model=False)
-
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
-        # Group activities
-        # print('\nFor y_test labels')
-        grouped_labels = [y_test_labels[0]]
-        for label in y_test_labels[1:]:
-            if label != grouped_labels[-1]:
-                grouped_labels.append(label)
+        # Merge activity periods
+        grouped_class_y_labels = merge_activity_periods(y_test_labels, class_labels)
+        grouped_class_labels = merge_activity_periods(y_pred_labels, class_labels)
 
-        grouped_y_labels = np.array(grouped_labels)
-        grouped_class_y_labels = [class_labels[label] for label in grouped_y_labels]
-        # print("Grouped class y labels:", grouped_class_y_labels)
-        # print(len(grouped_class_y_labels))
-
-        # print('\nFor initial predictions')
-        grouped_labels = [y_pred_labels[0]]
-        for label in y_pred_labels[1:]:
-            if label != grouped_labels[-1]:
-                grouped_labels.append(label)
-
-        grouped_labels = np.array(grouped_labels)
-        grouped_class_labels = [class_labels[label] for label in grouped_labels]
-        # print("Grouped class y labels:", grouped_class_labels)
-        # print(len(grouped_class_labels))
-
-        # For y_test labels
-        predicted_y_categories = []
-        exercising_activities = ['running', 'cycling', 'static_exercising', 'dynamic_exercising']
-        idle_activities = ['sitting', 'lying']
-        standing_activities = ['walking', 'standing']
-        y_test_labels = [class_labels[label] for label in y_test_labels]
-
-        for activity in y_test_labels:
-            if activity in exercising_activities:
-                predicted_y_categories.append('exercising')
-            elif activity in idle_activities:
-                predicted_y_categories.append('idle')
-            elif activity in standing_activities:
-                predicted_y_categories.append('walking')
-            else:
-                predicted_y_categories.append(activity)
-
-        predicted_y_categories = np.array(predicted_y_categories)
-        print(predicted_y_categories)
-        # print(len(predicted_y_categories))
-
-        # For initial predictions
-        predicted_categories = []
-        y_pred_labels = [class_labels[label] for label in y_pred_labels]
-        for activity in y_pred_labels:
-            if activity in exercising_activities:
-                predicted_categories.append('exercising')
-            elif activity in idle_activities:
-                predicted_categories.append('idle')
-            elif activity in standing_activities:
-                predicted_categories.append('walking')
-            else:
-                predicted_categories.append(activity)
-
-        predicted_categories = np.array(predicted_categories)
-        print(predicted_categories)
-        # print(len(predicted_categories))
-
+        # Make predictions with generic categories 
+        predicted_y_categories = group_categories(y_test_labels, class_labels)
+        predicted_categories = group_categories(y_pred_labels, class_labels)
+  
         print("\nAccuracy with initial predictions: ", round(100 * accuracy_score(predicted_y_categories, predicted_categories), 2))
         print("F1 score with initial predictions :", round(100 * f1_score(predicted_y_categories, predicted_categories, average='weighted'), 2))
-
         print("\nClassification Report for initial predictions: :")
         print(classification_report(predicted_y_categories, predicted_categories, target_names=category_labels))
 
