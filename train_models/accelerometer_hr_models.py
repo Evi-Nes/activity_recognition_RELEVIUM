@@ -37,6 +37,63 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
+def jitter_data(data, noise_level=0.01):
+    """
+    Adds random noise to accelerometer data.
+
+    Parameters:
+    - data: np.array of shape (num_samples, window_size, num_axes)
+    - noise_level: float, standard deviation of Gaussian noise
+
+    Returns:
+    - Jittered data
+    """
+    # noise = np.random.normal(0, noise_level, size=data.shape)
+    std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
+    noise = np.random.normal(loc=0.0, scale=noise_level * std_dev, size=data.shape)
+    jittered_data = data + noise
+    return jittered_data
+
+
+def scale_data(data, scale_range=(0.9, 1.1)):
+    scaling_factors = np.random.uniform(scale_range[0], scale_range[1], size=(data.shape[0], 1, 1))
+    return data * scaling_factors
+
+
+def jittering_data(X_train, y_train):
+    # Add noise to original data
+    X_train_jittered = jitter_data(X_train, noise_level=0.02)
+    y_train_jittered = np.copy(y_train)
+
+    # Scale original data
+    X_train_scaled = scale_data(X_train)
+    y_train_scaled = np.copy(y_train)
+
+    # Concatenate original and augmented data
+    X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
+    y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
+
+    return X_train_augmented, y_train_augmented
+
+
+def preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test):
+    scaler = RobustScaler()
+    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    X_train_flat = scaler.fit_transform(X_train_flat)
+    X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
+
+    X_test_flat = X_test.reshape(-1, X_test.shape[-1])
+    X_test_flat = scaler.transform(X_test_flat)
+    X_test = X_test_flat.reshape(X_test.shape)
+
+    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    hot_encoder = hot_encoder.fit(y_train_augmented)
+    y_train_augmented = hot_encoder.transform(y_train_augmented)
+    y_test = hot_encoder.transform(y_test)
+
+    return X_train_augmented, y_train_augmented, X_test, y_test
+
+
 def train_test_split(path, timesteps, to_balance):
     """
     This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
@@ -44,9 +101,9 @@ def train_test_split(path, timesteps, to_balance):
     """
     data = pd.read_csv(path)
 
-    columns_to_scale = ['accel_x', 'accel_y', 'accel_z', 'hr']
-    scaler = RobustScaler()
-    data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
+    # columns_to_scale = ['accel_x', 'accel_y', 'accel_z', 'hr']
+    # scaler = RobustScaler()
+    # data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
 
     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
     data = data.dropna()
@@ -82,17 +139,26 @@ def train_test_split(path, timesteps, to_balance):
     restored_test_order = np.argsort(test_indices)
     X_test_restored = X_test[restored_test_order]
     y_test_restored = y_test[restored_test_order]
+    
+    print(X_train.shape, X_test_restored.shape)
+    print(y_train.shape, y_test_restored.shape)
 
-    for activity in unique_activities:
-        print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
-        print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
+    # Add noise to original data
+    X_train_augmented, y_train_augmented = jittering_data(X_train, y_train)
+    X_train_augmented, y_train_augmented, X_test_restored, y_test_restored = preprocessing_data(X_train_augmented, y_train_augmented, X_test_restored, y_test_restored)
+    print(X_train.shape, X_test_restored.shape)
+    print(y_train.shape, y_test_restored.shape)
+    
+    # for activity in unique_activities:
+    #     print(f'Train Activity {activity}: {len(y_train[y_train == activity])}')
+    #     print(f'Test Activity {activity}: {len(y_test[y_test == activity])}')
 
-    hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_train)
-    y_train = hot_encoder.transform(y_train)
-    y_test_restored = hot_encoder.transform(y_test_restored)
+    # hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+    # hot_encoder = hot_encoder.fit(y_train)
+    # y_train = hot_encoder.transform(y_train)
+    # y_test_restored = hot_encoder.transform(y_test_restored)
 
-    return X_train, y_train, X_test_restored, y_test_restored, unique_activities
+    return X_train_augmented, y_train_augmented, X_test_restored, y_test_restored, unique_activities
 
 
 def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name):
@@ -246,7 +312,7 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
     and y_pred_labels parameters, it creates and saves the confusion matrix.
     """
-    path = f'plots_{filename}'
+    path = f'files_{filename}/plots_{filename}'
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -314,9 +380,11 @@ if __name__ == '__main__':
     print(f'Frequency: {frequency} Hz \n')
 
     if to_balance:
-        filename = f"sleeping_{frequency}Hz_2_classes_balanced"
+        filename = f"sleeping_{frequency}Hz_jittered"
+        print(filename)
     else:
         filename = f"sleeping_{frequency}Hz_2_classes_unbalanced"
+        print(filename)
 
     class_labels = ['lying', 'sleeping']
     # class_labels = ['W', 'N1', 'N2', 'N3', 'R']
