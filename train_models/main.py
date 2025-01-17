@@ -346,6 +346,7 @@ def sleeping_train_sequential_model(X_test, y_test, chosen_model, class_labels):
 
     # return y_test_labels, y_pred_labels, smoothed_predictions
 
+
 def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
     """
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
@@ -415,7 +416,7 @@ if __name__ == '__main__':
     sleeping_class_labels = ['lying', 'sleeping']
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"main2_{time_required_ms}ms"
+    filename = f"main_{time_required_ms}ms"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
@@ -436,10 +437,26 @@ if __name__ == '__main__':
                                                                 class_labels, filename, train_model=False)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
         
-        lying_indices = np.where(y_pred_labels == 2)[0]
-        # print('lying predictions', lying_predictions)
-        lying_samples = X_test[lying_indices]
-        lying_lables = y_test[lying_indices]
-        print(lying_samples.shape)
-        sleeping_train_sequential_model(lying_samples, lying_lables, chosen_model, sleeping_class_labels)
+        # lying_indices = np.where(y_pred_labels == 2)[0]
+        # # print('lying predictions', lying_predictions)
+        # lying_samples = X_test[lying_indices]
+        # lying_lables = y_test[lying_indices]
+        # print(lying_samples.shape)
+        # sleeping_train_sequential_model(lying_samples, lying_lables, chosen_model, sleeping_class_labels)
+        # single_labels = np.argmax(y_pred_labels, axis=1)
+
+        # Remove consecutive duplicates
+        grouped_labels = [y_pred_labels[0]]
+        for label in y_pred_labels[1:]:
+            if label != grouped_labels[-1]:
+                grouped_labels.append(label)
+
+        grouped_labels = np.array(grouped_labels)
+        grouped_class_labels = [class_labels[label] for label in grouped_labels]
+        
+        print("Original labels:", y_pred_labels)
+        print(y_pred_labels.shape)
+        print("Grouped labels:", grouped_labels)
+        print(grouped_labels.shape)
+        print("Grouped class labels:", grouped_class_labels)
 
