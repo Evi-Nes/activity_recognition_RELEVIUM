@@ -6,15 +6,10 @@ import os
 import contextlib
 import tensorflow as tf
 
-from sklearn.preprocessing import OneHotEncoder, RobustScaler, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
-from keras.src.layers import MaxPooling1D, Conv1D, Layer, Dense
-
-from sklearn.feature_selection import VarianceThreshold
-from sklearn import preprocessing
+from keras.src.layers import MaxPooling1D, Conv1D, Layer
 from sklearn.model_selection import StratifiedKFold
-from scipy.fft import fft
-from scipy.stats import skew, kurtosis
 
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')

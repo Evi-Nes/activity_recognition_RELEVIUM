@@ -270,6 +270,82 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     return y_test_labels, y_pred_labels, smoothed_predictions
 
 
+def sleeping_train_sequential_model(X_test, y_test, chosen_model, class_labels):
+    file_name = f'final_models/acc_{chosen_model}_sleeping_model.h5'
+    model = keras.models.load_model(file_name)
+
+    windows_per_group = 50
+    num_samples = X_test.shape[0]
+    if num_samples % windows_per_group != 0:
+        print(f"Warning: Data length {num_samples} is not a multiple of {windows_per_group}. Some data may be ignored.")
+
+    # New shape: (num_groups, windows_per_group * samples_per_window, num_features)
+    X_test = X_test[:num_samples - (num_samples % windows_per_group)]
+    grouped_data = X_test.reshape(-1, windows_per_group * X_test.shape[1], X_test.shape[2])
+    print(grouped_data.shape)
+
+    # print('Y_test', y_test.shape)
+    # y_test = y_test[:num_samples - (num_samples % windows_per_group)]
+    # reshaped_labels = y_test.reshape(-1, windows_per_group, 8)
+
+    # # Find the most common label in each group
+    # y_test = mode(reshaped_labels, axis=1).mode.flatten()
+    # print("New shape of data:", y_test.shape)
+
+    probabilities = model.predict(grouped_data)
+    print("probabilities: ", probabilities)
+    window_size = 6
+    threshold = 0.8
+    # y_test_labels = np.argmax(y_test, axis=1)
+    y_pred_labels = np.argmax(probabilities, axis=1)
+    smoothed_probs = np.zeros_like(probabilities)
+
+    for i in range(len(probabilities)):
+        start = max(0, i - window_size + 1)
+        end = i + 1
+        smoothed_probs[i] = np.mean(probabilities[start:end], axis=0)
+
+    smoothed_predictions = []
+    for i, probs in enumerate(smoothed_probs):
+        max_prob = np.max(probs)
+        if max_prob >= threshold:
+            smoothed_predictions.append(np.argmax(probs))
+        else:
+            # If below threshold, retain previous prediction or mark as uncertain (-1)
+            smoothed_predictions.append(smoothed_predictions[-1] if smoothed_predictions else 0)
+
+    smoothed_predictions = np.array(smoothed_predictions)
+    print('Predictions: ', y_pred_labels)
+    print('Smoothed predictions: ', smoothed_predictions)
+
+    # # Calculate accuracy and other metrics
+    # print("#### Sleeping-Lying ####")
+    # print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
+    # print("F1 score with initial predictions :", round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
+    # print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
+    # print("F1 score with smoothed predictions: ", round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
+    # print("\nClassification Report for initial predictions: :")
+    # print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
+    # print("\nClassification Report for smoothed predictions: :")
+    # print(classification_report(y_test_labels, smoothed_predictions, target_names=class_labels))
+
+    # activity_predictions_true = np.empty(len(y_test_labels), dtype=object)
+    # for i in range(0, len(y_test_labels)):
+    #     activity_predictions_true[i] = class_labels[y_test_labels[i]]
+
+    # activity_predictions = np.empty(len(y_pred_labels), dtype=object)
+    # for i in range(0, len(y_pred_labels)):
+    #     activity_predictions[i] = class_labels[y_pred_labels[i]]
+
+    # activity_predictions_smoothed = np.empty(len(smoothed_predictions), dtype=object)
+    # for i in range(0, len(smoothed_predictions)):
+    #     activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
+
+    # print(activity_predictions_true)
+    # print(activity_predictions_smoothed)
+
+    # return y_test_labels, y_pred_labels, smoothed_predictions
+
 def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
     """
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
@@ -336,7 +412,7 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
-
+    sleeping_class_labels = ['lying', 'sleeping']
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
     filename = f"main2_{time_required_ms}ms"
@@ -358,5 +434,12 @@ if __name__ == '__main__':
         print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
                                                                 class_labels, filename, train_model=False)
-
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
+        
+        lying_indices = np.where(y_pred_labels == 2)[0]
+        # print('lying predictions', lying_predictions)
+        lying_samples = X_test[lying_indices]
+        lying_lables = y_test[lying_indices]
+        print(lying_samples.shape)
+        sleeping_train_sequential_model(lying_samples, lying_lables, chosen_model, sleeping_class_labels)
+
