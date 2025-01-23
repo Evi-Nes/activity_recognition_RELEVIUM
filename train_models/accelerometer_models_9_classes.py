@@ -9,11 +9,34 @@ import tensorflow as tf
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
 from keras.src.layers import MaxPooling1D, Conv1D, Layer
+from pickle import dump, load
 
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+
+
+def display_data(path, filename):
+    """
+    This function plots subsets of the data as timeseries, to visualize the form of the data.
+    """
+    if not os.path.exists(f'files_{filename}/plots_{filename}'):
+        os.makedirs(f'files_{filename}/plots_{filename}')
+
+    data = pd.read_csv(path)
+    data = data[['activity', 'acc_x', 'acc_y', 'acc_z']]
+    data = data.dropna()
+    unique_activities = data['activity'].unique()
+
+    for activity in unique_activities:
+        subset = data[data['activity'] == activity].iloc[400:1900]
+        subset = subset.drop(['activity'], axis=1)
+
+        subset.plot(subplots=True, figsize=(10, 10))
+        plt.xlabel('Time')
+        plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}_data_gpt.png')
+        # plt.show()
 
 
 def jitter_data(data, noise_level=0.02):
@@ -59,13 +82,20 @@ def train_test_split(path, timesteps, testing):
     :return: train_data, test_data, unique_activities
     """
     data = pd.read_csv(path)
+    # if not testing:
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     unique_activities = data['activity'].unique()
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
-                                      unique_activities)
+                                    unique_activities)
+    # else:
+    #     data = data[['activity', 'acc_x', 'acc_y', 'acc_z']]
+    #     data = data.dropna()
+    #     unique_activities = data['activity'].unique()
 
+    #     x_data, y_data = create_sequences(data[['acc_x', 'acc_y', 'acc_z']], data['activity'], timesteps,
+    #                                     unique_activities)
     if not testing:
         np.random.seed(42)
         random = np.arange(0, len(y_data))
@@ -95,14 +125,16 @@ def augment_data(X_train, y_train):
     return X_train_augmented, y_train_augmented
 
 
-def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test):
+def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test, filename):
     scaler = RobustScaler()
     X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
     X_train_flat = scaler.fit_transform(X_train_flat)
     X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
+    dump(scaler, open(f'files_{filename}/scaler.pkl', 'wb'))
 
+    scaler1 = load(open(f'files_{filename}/scaler.pkl', 'rb'))
     X_test_flat = X_test.reshape(-1, X_test.shape[-1])
-    X_test_flat = scaler.transform(X_test_flat)
+    X_test_flat = scaler1.transform(X_test_flat)
     X_test = X_test_flat.reshape(X_test.shape)
 
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
@@ -370,11 +402,14 @@ if __name__ == '__main__':
     category_labels = ['exercising', 'idle', 'sleeping', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
+    # test_path = "../process_datasets/synthetic_sensor_data_multiuser.csv"
     filename = f"{time_required_ms}ms_9_classes"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
+
+    # display_data(test_path, filename)
 
     # Implemented models
     models = ['cnn_cnn_lstm']
@@ -384,7 +419,7 @@ if __name__ == '__main__':
 
     # Preprocess original and augmented data
     X_train_augmented, y_train_augmented = augment_data(X_train, y_train)
-    X_train_augmented, y_train_augmented, X_test, y_test = preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test)
+    X_train_augmented, y_train_augmented, X_test, y_test = preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test, filename)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
