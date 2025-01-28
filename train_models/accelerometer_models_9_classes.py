@@ -16,6 +16,10 @@ devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
+# import sys
+np.set_printoptions(threshold=np.inf)
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 def display_data(path, filename):
     """
@@ -82,29 +86,95 @@ def train_test_split(path, timesteps, testing):
     :return: train_data, test_data, unique_activities
     """
     data = pd.read_csv(path)
-    # if not testing:
-    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
-    data = data.dropna()
-    unique_activities = data['activity'].unique()
+    # data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+    # data = data.dropna()
 
+    if testing:
+        data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+        data = data.dropna()
+        unique_activities = data['activity'].unique()
+
+        for activity in unique_activities:
+            data_sample = data[data['activity'] == activity]
+            data_sample = data_sample.iloc[::4]
+            data_sample = data_sample[10:50]
+            data_sample['time_diff'] = data_sample['timestamp'].diff()
+            data_sample['time_diff'] = data_sample['time_diff'].fillna(0)  # Replace NaN with 0
+            data_sample = data_sample[data_sample['time_diff'] != 0]
+            data_sample = data_sample[data_sample['time_diff'] >= 0]  # Drop negative values if timestamps are incorrect
+
+            print(data_sample['time_diff'].describe())
+            
+    else:
+        data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+        data = data.dropna()
+
+    unique_activities = data['activity'].unique()
+    if testing:
+        data = data.iloc[::4]
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
                                     unique_activities)
-    # else:
-    #     data = data[['activity', 'acc_x', 'acc_y', 'acc_z']]
-    #     data = data.dropna()
-    #     unique_activities = data['activity'].unique()
+    
+    # Group by activity
+    data['Magnitude'] = np.sqrt(data['accel_x']**2 + data['accel_y']**2 + data['accel_z']**2)
+    grouped = data.groupby('activity')
+    features = grouped[['accel_x', 'accel_y', 'accel_z', 'Magnitude']].agg(['mean', 'std'])
+    features.columns = ['_'.join(col) for col in features.columns]
+    features = features.reset_index()
 
-    #     x_data, y_data = create_sequences(data[['acc_x', 'acc_y', 'acc_z']], data['activity'], timesteps,
-    #                                     unique_activities)
+    melted_features = features.melt(id_vars='activity', var_name='feature', value_name='value')
+    unique_activities = melted_features['activity'].unique()
+
+    for activity in unique_activities:
+        plt.figure(figsize=(12, 6))
+        activity_data = melted_features[melted_features['activity'] == activity]
+        sns.boxplot(data=activity_data, x='feature', y='value')
+        plt.xticks(rotation=45)
+        plt.title(f'Feature Boxplot for Activity: {activity}')
+        plt.tight_layout()
+        if testing:
+            plt.savefig(f'features_test_{activity}_plot', bbox_inches='tight', pad_inches=0.1)
+        else:
+            plt.savefig(f'features_train_{activity}_plot', bbox_inches='tight', pad_inches=0.1)
+        
+    # # Plot using Seaborn
+    # plt.figure(figsize=(15, 8))
+    # sns.boxplot(data=melted_features, x='feature', y='value', hue='activity')
+    # plt.xticks(rotation=45)
+    # plt.title('Feature Boxplots Grouped by Activity')
+    # plt.tight_layout()
+
+    if testing:
+        features.to_csv('features_test.csv', index=False)
+    #     plt.savefig('features_test_plot', bbox_inches='tight', pad_inches=0.1)
+
+
     if not testing:
+        features.to_csv('features_train.csv', index=False)
+        # plt.savefig('features_train_plot', bbox_inches='tight', pad_inches=0.1)
         np.random.seed(42)
         random = np.arange(0, len(y_data))
         np.random.shuffle(random)
         x_data = x_data[random]
         y_data = y_data[random]
 
+
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
+
+    return x_data, y_data, unique_activities
+
+
+
+def train_split(path, timesteps, testing):
+    data = pd.read_csv(path)
+    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+    data = data.dropna()
+    data = data[data['activity'] == 'cycling']
+    unique_activities = data['activity'].unique()
+
+    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
+                                    unique_activities)
 
     return x_data, y_data, unique_activities
 
@@ -130,9 +200,9 @@ def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test, filena
     X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
     X_train_flat = scaler.fit_transform(X_train_flat)
     X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
-    dump(scaler, open(f'files_{filename}/scaler.pkl', 'wb'))
+    dump(scaler, open(f'scaler.pkl', 'wb'))
 
-    scaler1 = load(open(f'files_{filename}/scaler.pkl', 'rb'))
+    scaler1 = load(open(f'scaler.pkl', 'rb'))
     X_test_flat = X_test.reshape(-1, X_test.shape[-1])
     X_test_flat = scaler1.transform(X_test_flat)
     X_test = X_test_flat.reshape(X_test.shape)
@@ -242,9 +312,9 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
 
     probabilities = model.predict(X_test)
-
+    # print(probabilities)
     window_size = 3
-    threshold = 0.8
+    threshold = 0.7
     y_test_labels = np.argmax(y_test, axis=1)
     y_pred_labels = np.argmax(probabilities, axis=1)
     smoothed_probs = np.zeros_like(probabilities)
@@ -389,7 +459,7 @@ def group_categories(y_labels, class_labels):
             predicted_categories.append(activity)
 
     predicted_categories = np.array(predicted_categories)
-    print(predicted_categories)
+    # print(predicted_categories)
 
     return predicted_categories
     
@@ -401,8 +471,8 @@ if __name__ == '__main__':
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
     category_labels = ['exercising', 'idle', 'sleeping', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
-    test_path = "../process_datasets/test_data_9.csv"
-    # test_path = "../process_datasets/synthetic_sensor_data_multiuser.csv"
+    test_path1 = "../process_datasets/test_data_9.csv"
+    test_path = "../process_datasets/final_my_data_collector.csv"
     filename = f"{time_required_ms}ms_9_classes"
 
     print(f'\nTraining 8 classes from file: {train_path}')
@@ -416,6 +486,9 @@ if __name__ == '__main__':
     # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_test, y_test, _ = train_test_split(test_path, samples_required, True)
+    X_test1, y_test1, _ = train_split(test_path1, samples_required, False)
+    X_test = np.concatenate((X_test, X_test1), axis=0)
+    y_test = np.concatenate((y_test, y_test1), axis=0)
 
     # Preprocess original and augmented data
     X_train_augmented, y_train_augmented = augment_data(X_train, y_train)
