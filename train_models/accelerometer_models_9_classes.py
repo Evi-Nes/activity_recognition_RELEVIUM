@@ -86,36 +86,44 @@ def train_test_split(path, timesteps, testing):
     :return: train_data, test_data, unique_activities
     """
     data = pd.read_csv(path)
-    # data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
-    # data = data.dropna()
-
-    if testing:
-        data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
-        data = data.dropna()
-        unique_activities = data['activity'].unique()
-
-        for activity in unique_activities:
-            data_sample = data[data['activity'] == activity]
-            data_sample = data_sample.iloc[::4]
-            data_sample = data_sample[10:50]
-            data_sample['time_diff'] = data_sample['timestamp'].diff()
-            data_sample['time_diff'] = data_sample['time_diff'].fillna(0)  # Replace NaN with 0
-            data_sample = data_sample[data_sample['time_diff'] != 0]
-            data_sample = data_sample[data_sample['time_diff'] >= 0]  # Drop negative values if timestamps are incorrect
-
-            print(data_sample['time_diff'].describe())
-            
-    else:
-        data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
-        data = data.dropna()
-
+    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+    data = data.dropna()
     unique_activities = data['activity'].unique()
+
+    # if testing:
+    #     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+    #     data = data.dropna()
+    #     unique_activities = data['activity'].unique()
+
+    #     for activity in unique_activities:
+    #         data_sample = data[data['activity'] == activity]
+    #         data_sample = data_sample.iloc[::4]
+    #         data_sample = data_sample[10:50]
+    #         data_sample['time_diff'] = data_sample['timestamp'].diff()
+    #         data_sample['time_diff'] = data_sample['time_diff'].fillna(0)  # Replace NaN with 0
+    #         data_sample = data_sample[data_sample['time_diff'] != 0]
+    #         data_sample = data_sample[data_sample['time_diff'] >= 0]  # Drop negative values if timestamps are incorrect
+
+    #         print(data_sample['time_diff'].describe())
+            
+    # else:
+    #     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+    #     data = data.dropna()
+
     if testing:
         data = data.iloc[::4]
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
                                     unique_activities)
     
-    # Group by activity
+    # Group by activity and Calculate features
+    scaler = RobustScaler()
+    if not testing:
+        data[['accel_x', 'accel_y', 'accel_z']] = scaler.fit_transform(data[['accel_x', 'accel_y', 'accel_z']])
+        dump(scaler, open(f'scaler_flat.pkl', 'wb'))
+    else:
+        scaler = load(open(f'scaler_flat.pkl', 'rb'))
+        data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
+
     data['Magnitude'] = np.sqrt(data['accel_x']**2 + data['accel_y']**2 + data['accel_z']**2)
     grouped = data.groupby('activity')
     features = grouped[['accel_x', 'accel_y', 'accel_z', 'Magnitude']].agg(['mean', 'std'])
@@ -126,6 +134,9 @@ def train_test_split(path, timesteps, testing):
     unique_activities = melted_features['activity'].unique()
 
     for activity in unique_activities:
+        print(testing)
+        print(f"Activity: {activity}")
+        print(data[data['activity']==activity].describe())
         plt.figure(figsize=(12, 6))
         activity_data = melted_features[melted_features['activity'] == activity]
         sns.boxplot(data=activity_data, x='feature', y='value')
@@ -136,28 +147,17 @@ def train_test_split(path, timesteps, testing):
             plt.savefig(f'features_test_{activity}_plot', bbox_inches='tight', pad_inches=0.1)
         else:
             plt.savefig(f'features_train_{activity}_plot', bbox_inches='tight', pad_inches=0.1)
-        
-    # # Plot using Seaborn
-    # plt.figure(figsize=(15, 8))
-    # sns.boxplot(data=melted_features, x='feature', y='value', hue='activity')
-    # plt.xticks(rotation=45)
-    # plt.title('Feature Boxplots Grouped by Activity')
-    # plt.tight_layout()
 
-    if testing:
-        features.to_csv('features_test.csv', index=False)
-    #     plt.savefig('features_test_plot', bbox_inches='tight', pad_inches=0.1)
-
+    # if testing:
+    #     features.to_csv('features_test.csv', index=False)
 
     if not testing:
-        features.to_csv('features_train.csv', index=False)
-        # plt.savefig('features_train_plot', bbox_inches='tight', pad_inches=0.1)
+        # features.to_csv('features_train.csv', index=False)
         np.random.seed(42)
         random = np.arange(0, len(y_data))
         np.random.shuffle(random)
         x_data = x_data[random]
         y_data = y_data[random]
-
 
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
@@ -165,12 +165,12 @@ def train_test_split(path, timesteps, testing):
     return x_data, y_data, unique_activities
 
 
-
 def train_split(path, timesteps, testing):
     data = pd.read_csv(path)
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     data = data[data['activity'] == 'cycling']
+    data = data.iloc[:int(len(data)*0.2)]
     unique_activities = data['activity'].unique()
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
