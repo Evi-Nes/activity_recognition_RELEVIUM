@@ -6,7 +6,7 @@ import os
 import contextlib
 import tensorflow as tf
 
-from sklearn.preprocessing import OneHotEncoder, RobustScaler
+from sklearn.preprocessing import OneHotEncoder, RobustScaler, StandardScaler, MinMaxScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
 from keras.src.layers import MaxPooling1D, Conv1D, Layer
 from pickle import dump, load
@@ -18,7 +18,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 # import sys
 np.set_printoptions(threshold=np.inf)
-import seaborn as sns
+# import seaborn as sns
 import matplotlib.pyplot as plt
 
 def display_data(path, filename, testing):
@@ -32,11 +32,13 @@ def display_data(path, filename, testing):
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     unique_activities = data['activity'].unique()
+    scaler = load(open(f'scaler_flat.pkl', 'rb'))
+    data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
     # if testing:
     #     data = data.iloc[::2]
 
     for activity in unique_activities:
-        subset = data[data['activity'] == activity].iloc[200:600]
+        subset = data[data['activity'] == activity].iloc[200:1000]
         subset = subset.drop(['activity'], axis=1)
 
         subset.plot(subplots=True, figsize=(10, 10))
@@ -117,44 +119,52 @@ def train_test_split(path, timesteps, testing):
     :return: train_data, test_data, unique_activities
     """
     data = pd.read_csv(path)
-    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
-    data = data.dropna()
-    data = data[data['activity'] != 'lying']
-    data = data[data['activity'] != 'sleeping']
-    unique_activities = data['activity'].unique()
-
     # if testing:
-    #     data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
-    #     data = data.dropna()
-    #     unique_activities = data['activity'].unique()
+    #     data.columns = ['timestamp', 'activity', 'user_id', 'accel_x', 'accel_y', 'accel_z']
+    # data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+    # data = data.dropna()
+    # data = data[data['activity'] != 'lying']
+    # data = data[data['activity'] != 'sleeping']
+    # if not testing:
+        # data = data[data['activity'] != 'dynamic_exercising']
+        # data = data[data['activity'] != 'static_exercising']
+        # data = data[data['activity'] != 'walking']
+        # data = data[data['activity'] != 'sitting']
+        # data = data[data['activity'] != 'standing']
+    unique_activities = data['activity'].unique()
+    if testing:
+        data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z']]
+        data = data.dropna()
+        unique_activities = data['activity'].unique()
 
-    #     for activity in unique_activities:
-    #         data_sample = data[data['activity'] == activity]
-    #         data_sample = data_sample.iloc[::4]
-    #         data_sample = data_sample[10:50]
-    #         data_sample['time_diff'] = data_sample['timestamp'].diff()
-    #         data_sample['time_diff'] = data_sample['time_diff'].fillna(0)  # Replace NaN with 0
-    #         data_sample = data_sample[data_sample['time_diff'] != 0]
-    #         data_sample = data_sample[data_sample['time_diff'] >= 0]  # Drop negative values if timestamps are incorrect
+        for activity in unique_activities:
+            data_sample = data[data['activity'] == activity]
+            # data_sample = data_sample[10:50]
+            data_sample['time_diff'] = data_sample['timestamp'].diff()
+            data_sample['time_diff'] = data_sample['time_diff'].fillna(0)  # Replace NaN with 0
+            data_sample = data_sample[data_sample['time_diff'] != 0]
+            data_sample = data_sample[data_sample['time_diff'] >= 0]  # Drop negative values if timestamps are incorrect
 
-    #         print(data_sample['time_diff'].describe())
-            
-    # else:
-    #     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
-    #     data = data.dropna()
+            print(data_sample['time_diff'].describe())
+    else:
+        data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
+        data = data.dropna()
+        data = data[data['activity'] != 'lying']
+        data = data[data['activity'] != 'sleeping']
 
-
-    scaler = RobustScaler()
+    scaler = MinMaxScaler(feature_range=(-1, 1))
+    # scaler = RobustScaler()
     if not testing:
         data[['accel_x', 'accel_y', 'accel_z']] = scaler.fit_transform(data[['accel_x', 'accel_y', 'accel_z']])
         dump(scaler, open(f'scaler_flat.pkl', 'wb'))
     else:
         scaler = load(open(f'scaler_flat.pkl', 'rb'))
         data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
+        print(data.head)
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
                                     unique_activities)
-    
+
     # Group by activity and Calculate features
 
     # data['Magnitude'] = np.sqrt(data['accel_x']**2 + data['accel_y']**2 + data['accel_z']**2)
@@ -194,6 +204,7 @@ def train_test_split(path, timesteps, testing):
 
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
+    print(unique_activities)
 
     return x_data, y_data, unique_activities
 
@@ -203,11 +214,17 @@ def train_split(path, timesteps, testing):
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     data = data[data['activity'] != 'walking']
+    data = data[data['activity'] != 'sitting']
+    data = data[data['activity'] != 'standing']
     data = data[data['activity'] != 'lying']
     data = data[data['activity'] != 'sleeping']
-    data = data.iloc[:int(len(data)*0.2)]
+    data = data[data['activity'] != 'dynamic_exercising']
+    data = data[data['activity'] != 'static_exercising']
+    # data = data.iloc[:int(len(data)*0.2)]
     unique_activities = data['activity'].unique()
-
+    print(unique_activities)
+    scaler = load(open(f'scaler_flat.pkl', 'rb'))
+    data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
                                     unique_activities)
 
@@ -501,48 +518,52 @@ def group_categories(y_labels, class_labels):
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 15000
+    time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     # class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'static_exercising', 'walking']
     class_labels = ['cycling', 'dynamic_exercising', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
-    category_labels = ['exercising', 'idle', 'sleeping', 'walking']
+    # category_labels = ['exercising', 'idle', 'sleeping', 'walking']
+    category_labels = ['exercising', 'idle', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path1 = "../process_datasets/test_data_9.csv"
-    # test_path = "../process_datasets/final_my_data_collector.csv"
-    test_path = "../process_datasets/my_walking.csv"
-    filename = f"{time_required_ms}ms_7_classes_no_real2"
+    test_path = "../process_datasets/final_my_data_collector.csv"
+    # test_path = "../process_datasets/my_walking.csv"
+    filename = f"{time_required_ms}ms_7_classes_robust"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
-    display_data(train_path, filename, False)
-    display_data(test_path, filename, True)
-
     # Implemented models
     models = ['cnn_cnn_lstm']
     # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
-    X_test, y_test, _ = train_test_split(test_path, samples_required, True)
+    X_testr, y_testr, _ = train_test_split(test_path, samples_required, True)
     X_test1, y_test1, _ = train_split(test_path1, samples_required, False)
+    # X_test, y_test, _ = train_test_split(test_path1, samples_required, True)
     # X_train_real, y_train_real, X_test_real, y_test_real = real_train_split(test_path, samples_required)
 
     # X_train = np.concatenate((X_train, X_test_real), axis=0)
     # y_train = np.concatenate((y_train, y_test_real), axis=0)
     # X_test = np.concatenate((X_test_real, X_test1), axis=0)
     # y_test = np.concatenate((y_test_real, y_test1), axis=0)
-    X_test = np.concatenate((X_test, X_test1), axis=0)
-    y_test = np.concatenate((y_test, y_test1), axis=0)
 
+    X_test = np.concatenate((X_testr, X_test1), axis=0)
+    y_test = np.concatenate((y_testr, y_test1), axis=0)
+
+    # display_data(train_path, filename, False)
+    # display_data(test_path, filename, True)
 
     # Preprocess original and augmented data
+    # X_train_augmented = X_train
+    # y_train_augmented = y_train
     X_train_augmented, y_train_augmented = augment_data(X_train, y_train)
     X_train_augmented, y_train_augmented, X_test, y_test = preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test, filename)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
-                                                                class_labels, filename, train_model=True)
+                                                                class_labels, filename, train_model=False)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods
