@@ -16,6 +16,34 @@ def low_pass_filter(data, cutoff=0.3, fs=25, order=5):
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
     return filtfilt(b, a, data)
 
+def process_acceleration(acc_data, sampling_rate=25, cutoff_freq=0.3):
+    """
+    Process acceleration data:
+    1. Convert from 1/64g to m/s²
+    2. Remove gravity using a high-pass filter
+
+    Parameters:
+    acc_data: numpy array of shape (n_samples, 3) containing ACC_X, ACC_Y, ACC_Z
+    sampling_rate: sampling frequency in Hz (default: 25 Hz)
+    cutoff_freq: cutoff frequency for the high-pass filter (default: 0.3 Hz)
+
+    Returns:
+    linear_acc: gravity-free acceleration in m/s²
+    """
+    G = 9.81
+    acc_ms2 = acc_data * (1 / 64) * G
+
+    # Design high-pass filter
+    nyquist_freq = sampling_rate / 2
+    normalized_cutoff_freq = cutoff_freq / nyquist_freq
+    b, a = signal.butter(4, normalized_cutoff_freq, btype='high')
+
+    # Apply filter to each axis
+    linear_acc = np.zeros_like(acc_ms2)
+    for i in range(3):  # For each axis
+        linear_acc[:, i] = signal.filtfilt(b, a, acc_ms2[:, i])
+
+    return linear_acc
 
 # for filename in os.listdir(main_folder):
 #     if not filename.endswith('_whole_df.csv'):
@@ -64,15 +92,15 @@ def low_pass_filter(data, cutoff=0.3, fs=25, order=5):
 #     reduced_data.to_csv(os.path.join(main_folder, filename.replace('_whole_df.csv', '_processed_25Hz.csv')))
 #     print(f'Merged {filename}')
 
-# Combine 25Hz data with classes N1, N2, N3, R, W
-all_data = []
-for filename in os.listdir(main_folder):
-    if not filename.endswith('_processed_25Hz.csv'):
-        continue
-    data = pd.read_csv(os.path.join(main_folder, filename))
-    all_data.append(data)
-
-combined_df = pd.concat(all_data, ignore_index=True)
+# # Combine 25Hz data with classes N1, N2, N3, R, W
+# all_data = []
+# for filename in os.listdir(main_folder):
+#     if not filename.endswith('_processed_25Hz.csv'):
+#         continue
+#     data = pd.read_csv(os.path.join(main_folder, filename))
+#     all_data.append(data)
+#
+# combined_df = pd.concat(all_data, ignore_index=True)
 
 # # Estimate gravity using a low-pass filter
 # fs = 25
@@ -86,70 +114,23 @@ combined_df = pd.concat(all_data, ignore_index=True)
 # combined_df['accel_z'] = combined_df['accel_z'] - combined_df['gravity_z']
 # combined_df.drop(['gravity_x', 'gravity_y', 'gravity_z'], axis=1, inplace=True)
 
-missing_values = combined_df.isnull().sum()
-print("Missing values in each column:\n", missing_values)
-combined_df = combined_df.dropna()
+# missing_values = combined_df.isnull().sum()
+# print("Missing values in each column:\n", missing_values)
+# combined_df = combined_df.dropna()
 
-print('Activity values after down sampling \n', combined_df['activity'].value_counts())
-print('Final data \n', combined_df.head())
-print(f"Final size of dataframe: {len(combined_df)}")
-combined_df.to_csv('combined_dreamt_25Hz.csv', index=False)
+# print('Activity values after down sampling \n', combined_df['activity'].value_counts())
+# print('Final data \n', combined_df.head())
+# print(f"Final size of dataframe: {len(combined_df)}")
+# print(combined_df.head)
+# combined_df.to_csv('combined_dreamt_25Hz.csv', index=False)
 
+# Extract just the acceleration columns and convert to numpy array
+combined_df = pd.read_csv('combined_dreamt_25Hz.csv')
+acc_data = combined_df[['accel_x', 'accel_y', 'accel_z']].to_numpy(dtype=float)
+linear_acceleration = process_acceleration(acc_data)
+combined_df['accel_x'] = linear_acceleration[:, 0]
+combined_df['accel_y'] = linear_acceleration[:, 1]
+combined_df['accel_z'] = linear_acceleration[:, 2]
 
-
-def process_acceleration(acc_data, sampling_rate=32, cutoff_freq=0.3):
-    """
-    Process acceleration data:
-    1. Convert from 1/64g to m/s²
-    2. Remove gravity using a high-pass filter
-
-    Parameters:
-    acc_data: numpy array of shape (n_samples, 3) containing ACC_X, ACC_Y, ACC_Z
-    sampling_rate: sampling frequency in Hz (default: 32 Hz)
-    cutoff_freq: cutoff frequency for the high-pass filter (default: 0.3 Hz)
-
-    Returns:
-    linear_acc: gravity-free acceleration in m/s²
-    """
-    # Convert from 1/64g to g, then to m/s²
-    G = 9.81  # gravitational acceleration in m/s²
-    acc_ms2 = acc_data * (1 / 64) * G
-
-    # Design high-pass filter
-    nyquist_freq = sampling_rate / 2
-    normalized_cutoff_freq = cutoff_freq / nyquist_freq
-    b, a = signal.butter(4, normalized_cutoff_freq, btype='high')
-
-    # Apply filter to each axis
-    linear_acc = np.zeros_like(acc_ms2)
-    for i in range(3):  # For each axis
-        linear_acc[:, i] = signal.filtfilt(b, a, acc_ms2[:, i])
-
-    return linear_acc
-
-
-def get_gravity_component(acc_data, sampling_rate=32, cutoff_freq=0.3):
-    """
-    Extract the gravity component using a low-pass filter
-
-    Parameters:
-    Same as process_acceleration function
-
-    Returns:
-    gravity: gravity component in m/s²
-    """
-    # Convert to m/s²
-    G = 9.81
-    acc_ms2 = acc_data * (1 / 64) * G
-
-    # Design low-pass filter
-    nyquist_freq = sampling_rate / 2
-    normalized_cutoff_freq = cutoff_freq / nyquist_freq
-    b, a = signal.butter(4, normalized_cutoff_freq, btype='low')
-
-    # Apply filter to each axis
-    gravity = np.zeros_like(acc_ms2)
-    for i in range(3):
-        gravity[:, i] = signal.filtfilt(b, a, acc_ms2[:, i])
-
-    return gravity
+print(combined_df.head)
+combined_df.to_csv('combined_filter_dreamt_25Hz.csv', index=False)
