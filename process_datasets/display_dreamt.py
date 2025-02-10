@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-path = "combined_filter_dreamt_25Hz.csv"
+path = "combined_dreamt_25Hz.csv"
 if not os.path.exists(f'plots_dreamt'):
     os.makedirs(f'plots_dreamt')
 print('hereee')
