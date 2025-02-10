@@ -7,7 +7,7 @@ df_walk_running = pd.read_csv('final_walking_running.csv')
 df_static_exercising = pd.read_csv('final_static_exercising.csv')
 df_dynamic_exercising = pd.read_csv('final_dynamic_exercising.csv')
 df_dreamt = pd.read_csv('final_dreamt_25Hz.csv')
-df_dreamt = df_dreamt[:int(len(df_dreamt)*0.2)]
+# df_dreamt = df_dreamt[:int(len(df_dreamt)*0.2)]
 
 combined_df = pd.concat([df_domino, df_pamap2, df_wisdm, df_walk_running, df_static_exercising, df_dynamic_exercising, df_dreamt], axis=0, ignore_index=True)
 print(combined_df.head())

@@ -9,23 +9,13 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 
 if __name__ == '__main__':
-    frequency = 25
-    time_required_ms = 10000
-    samples_required = int(time_required_ms * frequency / 1000)
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking', 'sleeping']
-
     train_path = "train_data.csv"
     test_path = "test_data.csv"
-    dreamt_path = "combined_dreamt_25Hz.csv"
+    dreamt_path = "final_dreamt_25Hz.csv"
 
     print('---- Initial Dreamt Data ----')
     dreamt_data = pd.read_csv(dreamt_path)
-    dreamt_data = dreamt_data[['activity', 'accel_x', 'accel_y', 'accel_z', 'user_id']]
-    dreamt_data = dreamt_data.dropna()
-    mapping = {'W': 'lying', 'N1': 'sleeping', 'N2': 'sleeping', 'N3': 'sleeping', 'R': 'sleeping'}
-    dreamt_data['activity'] = dreamt_data['activity'].replace(mapping)
-    dreamt_data = dreamt_data[:int((len(dreamt_data)*0.3))]
-    
     unique_activities = dreamt_data['activity'].unique()
     for activity in unique_activities:
         print(f"Activity {activity}: {len(dreamt_data[dreamt_data['activity'] == activity])}")
@@ -53,7 +43,7 @@ if __name__ == '__main__':
         print(f"Activity {activity}: {len(test_data[test_data['activity'] == activity])}")
 
     print('\n---- Dreamt Train Test Split ----')
-    train_dreamt_data = dreamt_data[:int(0.8*len(dreamt_data))]
+    train_dreamt_data = dreamt_data[:int(0.7*len(dreamt_data))]
     lying_data = train_dreamt_data[train_dreamt_data['activity'] == 'lying']
     sleeping_data = train_dreamt_data[train_dreamt_data['activity'] == 'sleeping']
     sleeping_data = sleeping_data[:int(len(sleeping_data) * 0.5)]
@@ -64,12 +54,12 @@ if __name__ == '__main__':
         print(f"Activity {activity}: {len(train_dreamt_data[train_dreamt_data['activity'] == activity])}")
     print('\nUnique Users: ', train_dreamt_data['user_id'].unique())
 
-    test_dreamt_data = dreamt_data[int(0.8*len(dreamt_data)):]
-    lying_data = test_dreamt_data[test_dreamt_data['activity'] == 'lying']
-    lying_data = lying_data[int(len(lying_data) * 0.4):]
-    sleeping_data = test_dreamt_data[test_dreamt_data['activity'] == 'sleeping']
-    sleeping_data = sleeping_data[:int(len(sleeping_data) * 0.5)]
-    test_dreamt_data = pd.concat([lying_data, sleeping_data])
+    test_dreamt_data = dreamt_data[int(0.85*len(dreamt_data)):]
+    # lying_data = test_dreamt_data[test_dreamt_data['activity'] == 'lying']
+    # lying_data = lying_data[int(len(lying_data) * 0.4):]
+    # sleeping_data = test_dreamt_data[test_dreamt_data['activity'] == 'sleeping']
+    # sleeping_data = sleeping_data[:int(len(sleeping_data) * 0.5)]
+    # test_dreamt_data = pd.concat([lying_data, sleeping_data])
 
     unique_activities = test_dreamt_data['activity'].unique()
     for activity in unique_activities:
