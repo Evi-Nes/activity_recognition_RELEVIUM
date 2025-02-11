@@ -10,18 +10,12 @@ from sklearn.preprocessing import OneHotEncoder, RobustScaler, StandardScaler, M
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
 from keras.src.layers import MaxPooling1D, Conv1D, Layer
 from pickle import dump, load
+from scipy.signal import butter, filtfilt
 
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
-
-# import sys
-np.set_printoptions(threshold=np.inf)
-# import seaborn as sns
-import matplotlib.pyplot as plt
-
-from scipy.signal import butter, filtfilt
 
 
 def apply_lowpass_filter(data, cutoff_freq, fs=25, order=4):
@@ -40,12 +34,14 @@ def apply_lowpass_filter(data, cutoff_freq, fs=25, order=4):
     filtered_data = filtfilt(b, a, data)
     return filtered_data
 
+
 def filter_accelerometer_data(accel_x, accel_y, accel_z, cutoff_freq=11):
     """Filter all three accelerometer axes"""
     filtered_x = apply_lowpass_filter(accel_x, cutoff_freq)
     filtered_y = apply_lowpass_filter(accel_y, cutoff_freq)
     filtered_z = apply_lowpass_filter(accel_z, cutoff_freq)
     return filtered_x, filtered_y, filtered_z
+
 
 def display_data(path, filename, testing):
     """
@@ -71,7 +67,8 @@ def display_data(path, filename, testing):
             plt.savefig(f'files_{filename}/plots_{filename}/unscaled_train_{activity}.png')
 
     scaler = load(open(f'scaler_flat.pkl', 'rb'))
-    data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'], data['accel_z'])
+    data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'],
+                                                                                  data['accel_z'])
     data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
 
     for activity in unique_activities:
@@ -124,32 +121,6 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
-def real_train_split(path, timesteps):
-    data = pd.read_csv(path)
-    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
-    data = data.dropna()
-    unique_activities = data['activity'].unique()
-    scaler = load(open(f'scaler_flat.pkl', 'rb'))
-    data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
-    train_data = np.ones((1, 4))
-    test_data = np.ones((1, 4))
-
-    for activity in unique_activities:
-        sample = data[data['activity'] == activity]
-        train_data = np.vstack((train_data, sample[:int(len(sample)/2)]))
-        test_data = np.vstack((test_data, sample[int(len(sample)/2):]))
-
-    train_data = pd.DataFrame(train_data, columns=['activity', 'accel_x', 'accel_y', 'accel_z'])
-    test_data = pd.DataFrame(test_data, columns=['activity', 'accel_x', 'accel_y', 'accel_z'])
-
-    X_train, y_train = create_sequences(train_data[['accel_x', 'accel_y', 'accel_z']], train_data['activity'], timesteps,
-                                    unique_activities)
-    X_test, y_test = create_sequences(test_data[['accel_x', 'accel_y', 'accel_z']], test_data['activity'], timesteps,
-                                    unique_activities)
-    
-    return X_train, y_train, X_test, y_test
-
-
 def train_test_split(path, timesteps, testing):
     """
     This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
@@ -158,61 +129,22 @@ def train_test_split(path, timesteps, testing):
     data = pd.read_csv(path)
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
-    # data = data[data['activity'] != 'lying']
-    # data = data[data['activity'] != 'sleeping']
+    data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
+
+    unique_activities = data['activity'].unique()
+    data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'], data['accel_z'])
 
     if not testing:
-        # data = data[data['activity'] != 'dynamic_exercising']
-        # data = data[data['activity'] != 'static_exercising']
-        data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
-        # data = data[data['activity'] != 'walking']
-        # data = data[data['activity'] != 'sitting']
-        # data = data[data['activity'] != 'standing']
-    unique_activities = data['activity'].unique()
-    # scaler = MinMaxScaler(feature_range=(-1, 1))
-    # data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'], data['accel_z'])
-    scaler = RobustScaler()
-    if not testing:
+        scaler = RobustScaler()
         data[['accel_x', 'accel_y', 'accel_z']] = scaler.fit_transform(data[['accel_x', 'accel_y', 'accel_z']])
-        dump(scaler, open(f'scaler_flat.pkl', 'wb'))
+        dump(scaler, open(f'robust_scaler.pkl', 'wb'))
     else:
-        scaler = load(open(f'scaler_flat.pkl', 'rb'))
+        scaler = load(open(f'robust_scaler.pkl', 'rb'))
         data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
 
-    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
-                                    unique_activities)
-
-    # Group by activity and Calculate features
-
-    # data['Magnitude'] = np.sqrt(data['accel_x']**2 + data['accel_y']**2 + data['accel_z']**2)
-    # grouped = data.groupby('activity')
-    # features = grouped[['accel_x', 'accel_y', 'accel_z', 'Magnitude']].agg(['mean', 'std'])
-    # features.columns = ['_'.join(col) for col in features.columns]
-    # features = features.reset_index()
-
-    # melted_features = features.melt(id_vars='activity', var_name='feature', value_name='value')
-    # unique_activities = melted_features['activity'].unique()
-
-    # for activity in unique_activities:
-    #     print(testing)
-    #     print(f"Activity: {activity}")
-    #     print(data[data['activity']==activity].describe())
-    #     plt.figure(figsize=(12, 6))
-    #     activity_data = melted_features[melted_features['activity'] == activity]
-    #     sns.boxplot(data=activity_data, x='feature', y='value')
-    #     plt.xticks(rotation=45)
-    #     plt.title(f'Feature Boxplot for Activity: {activity}')
-    #     plt.tight_layout()
-    #     if testing:
-    #         plt.savefig(f'features_test_{activity}_plot', bbox_inches='tight', pad_inches=0.1)
-    #     else:
-    #         plt.savefig(f'features_train_{activity}_plot', bbox_inches='tight', pad_inches=0.1)
-
-    # if testing:
-    #     features.to_csv('features_test.csv', index=False)
+    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
 
     if not testing:
-        # features.to_csv('features_train.csv', index=False)
         np.random.seed(42)
         random = np.arange(0, len(y_data))
         np.random.shuffle(random)
@@ -221,31 +153,6 @@ def train_test_split(path, timesteps, testing):
 
     # for activity in unique_activities:
     #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
-    print(unique_activities)
-
-    return x_data, y_data, unique_activities
-
-
-def train_split(path, timesteps):
-    data = pd.read_csv(path)
-    data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
-    data = data.dropna()
-    # data = data[data['activity'] != 'walking']
-    # data = data[data['activity'] != 'sitting']
-    # data = data[data['activity'] != 'standing']
-    # data = data[data['activity'] != 'lying']
-    # data = data[data['activity'] != 'sleeping']
-    data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
-    # data = data[data['activity'] != 'dynamic_exercising']
-    # data = data[data['activity'] != 'static_exercising']
-    # data = data.iloc[:int(len(data)*0.5)]
-    unique_activities = data['activity'].unique()
-    print(unique_activities)
-    scaler = load(open(f'scaler_flat.pkl', 'rb'))
-    # data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'], data['accel_z'])
-    data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
-    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps,
-                                    unique_activities)
 
     return x_data, y_data, unique_activities
 
@@ -263,21 +170,15 @@ def augment_data(X_train, y_train):
     X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
     y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
 
+    # scaler = load(open(f'robust_scaler.pkl', 'rb'))
+    # X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    # X_train_flat = scaler.transform(X_train_flat)
+    # X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
+
     return X_train_augmented, y_train_augmented
 
 
-def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test, filename):
-    scaler = RobustScaler()
-    X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
-    X_train_flat = scaler.fit_transform(X_train_flat)
-    X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
-    dump(scaler, open(f'scaler.pkl', 'wb'))
-
-    scaler1 = load(open(f'scaler.pkl', 'rb'))
-    X_test_flat = X_test.reshape(-1, X_test.shape[-1])
-    X_test_flat = scaler1.transform(X_test_flat)
-    X_test = X_test_flat.reshape(X_test.shape)
-
+def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test):
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder = hot_encoder.fit(y_train_augmented)
     y_train_augmented = hot_encoder.transform(y_train_augmented)
@@ -293,23 +194,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     :return: the chosen sequential model
     """
     model = keras.Sequential()
-    if chosen_model == 'lstm_1':
-        model.add(keras.layers.LSTM(units=64, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'gru_1':
-        model.add(keras.layers.GRU(units=64, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'lstm_2':
-        model.add(keras.layers.LSTM(units=64, return_sequences=True, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.LSTM(units=32, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'gru_2':
-        model.add(keras.layers.GRU(units=64, return_sequences=True, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'cnn_lstm':
+    if chosen_model == 'cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
         model.add(MaxPooling1D(pool_size=4))
         model.add(keras.layers.LSTM(units=32, return_sequences=False, input_shape=input_shape))
@@ -335,17 +220,6 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
         model.add(Conv1D(filters=32, kernel_size=11, activation='relu'))
         model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.Flatten())
-        model.add(keras.layers.Dense(64, activation='relu'))
-        model.add(keras.layers.Dropout(rate=0.4))
-    elif chosen_model == '2cnn_2cnn':
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=2))
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu'))
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=2))
         model.add(keras.layers.Dropout(rate=0.4))
         model.add(keras.layers.Flatten())
         model.add(keras.layers.Dense(64, activation='relu'))
@@ -383,7 +257,6 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
 
     probabilities = model.predict(X_test)
-    # print(probabilities)
     window_size = 3
     threshold = 0.7
     y_test_labels = np.argmax(y_test, axis=1)
@@ -411,7 +284,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
     print("F1 score with smoothed predictions: ",
           round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
-    
+
     print("\nClassification Report for initial predictions: :")
     print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
     print("\nClassification Report for smoothed predictions: :")
@@ -428,7 +301,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     activity_predictions_smoothed = np.empty(len(smoothed_predictions), dtype=object)
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
-    
+
     smoothed_predictions = np.array(smoothed_predictions)
     return y_test_labels, y_pred_labels, smoothed_predictions
 
@@ -494,6 +367,67 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
         plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
 
 
+def plot_confusion_matrix_grouped(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
+    """
+    This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
+    and y_pred_labels parameters, it creates and saves the confusion matrix.
+    """
+    path = f'files_{filename}/plots_{filename}'
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    # Initial Values
+    normalize_cm = [None]
+    for norm_value in normalize_cm:
+        if norm_value == 'true':
+            format = '.2f'
+            plot_name = f'acc_{chosen_model}_cm_norm_inital_grouped.png'
+        else:
+            format = 'd'
+            plot_name = f'acc_{chosen_model}_cm_initial_grouped.png'
+
+        disp = ConfusionMatrixDisplay.from_predictions(
+            y_test_labels, y_pred_labels,
+            display_labels=class_labels,
+            normalize=norm_value,
+            xticks_rotation=70,
+            values_format=format,
+            cmap=plt.cm.Blues
+        )
+
+        plt.figure(figsize=(8, 10))
+        plt.title(f'Confusion Matrix for {chosen_model}')
+        disp.plot(cmap=plt.cm.Blues, values_format=format)
+        plt.xticks(rotation=70)
+        plt.tight_layout()
+        plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
+
+    # Smoothed Values
+    for norm_value in normalize_cm:
+        if norm_value == 'true':
+            format = '.2f'
+            plot_name = f'acc_{chosen_model}_cm_norm_smooth_grouped.png'
+        else:
+            format = 'd'
+            plot_name = f'acc_{chosen_model}_cm_smooth_grouped.png'
+
+        disp = ConfusionMatrixDisplay.from_predictions(
+            y_test_labels, smoothed_predictions,
+            display_labels=class_labels,
+            normalize=norm_value,
+            xticks_rotation=70,
+            values_format=format,
+            cmap=plt.cm.Blues
+        )
+
+        plt.figure(figsize=(8, 10))
+        plt.title(f'Confusion Matrix for {chosen_model}')
+        disp.plot(cmap=plt.cm.Blues, values_format=format)
+        plt.xticks(rotation=70)
+        plt.tight_layout()
+        plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
+
+
 def merge_activity_periods(y_labels, class_labels):
     """
     This function takes the activity labels and combine activities with the same label to create larger periods of a certain activity.
@@ -533,21 +467,17 @@ def group_categories(y_labels, class_labels):
     # print(predicted_categories)
 
     return predicted_categories
-    
+
 
 if __name__ == '__main__':
     frequency = 25
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
-    # class_labels = ['cycling', 'dynamic_exercising', 'running', 'sitting', 'standing', 'walking']
     category_labels = ['exercising', 'idle', 'sleeping', 'walking']
-    # category_labels = ['exercising', 'idle', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
-    test_path1 = "../process_datasets/test_data_9.csv"
-    # test_path = "../process_datasets/final_my_data_collector.csv"
-    # test_path = "../process_datasets/my_walking.csv"
-    filename = f"{time_required_ms}ms_9_classes"
+    test_path = "../process_datasets/test_data_9.csv"
+    filename = f"{time_required_ms}ms_8_classes"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
@@ -557,45 +487,40 @@ if __name__ == '__main__':
     models = ['cnn_cnn_lstm']
     # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
-    # X_testr, y_testr, _ = train_test_split(test_path, samples_required, True)
-    X_test1, y_test1, _ = train_split(test_path1, samples_required)
-    # X_test, y_test, _ = train_test_split(test_path1, samples_required, True)
-    # X_train_real, y_train_real, X_test_real, y_test_real = real_train_split(test_path, samples_required)
-
-    # X_train = np.concatenate((X_train, X_test_real), axis=0)
-    # y_train = np.concatenate((y_train, y_test_real), axis=0)
-    # X_test = np.concatenate((X_test_real, X_test1), axis=0)
-    # y_test = np.concatenate((y_test_real, y_test1), axis=0)
-
-    # X_test = np.concatenate((X_testr, X_test1), axis=0)
-    # y_test = np.concatenate((y_testr, y_test1), axis=0)
+    X_test, y_test, _ = train_test_split(test_path, samples_required, True)
 
     display_data(train_path, filename, False)
     # display_data(test_path, filename, True)
 
     # Preprocess original and augmented data
-    # X_train_augmented = X_train
-    # y_train_augmented = y_train
     X_train_augmented, y_train_augmented = augment_data(X_train, y_train)
-    X_train_augmented, y_train_augmented, X_test, y_test = preprocess_data(X_train_augmented, y_train_augmented, X_test1, y_test1, filename)
+    X_train_augmented, y_train_augmented, X_test, y_test = preprocess_data(X_train_augmented, y_train_augmented,
+                                                                           X_test, y_test)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
-        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
-                                                                class_labels, filename, train_model=True)
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented,
+                                                                                    y_train_augmented, X_test, y_test,
+                                                                                    chosen_model,
+                                                                                    class_labels, filename,
+                                                                                    train_model=False)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods
-        grouped_class_y_labels = merge_activity_periods(y_test_labels, class_labels)
-        grouped_class_labels = merge_activity_periods(y_pred_labels, class_labels)
+        # grouped_class_y_labels = merge_activity_periods(y_test_labels, class_labels)
+        # grouped_class_labels = merge_activity_periods(y_pred_labels, class_labels)
+        # grouped_class_labels_smooth = merge_activity_periods(smoothed_predictions, class_labels)
 
-        # Make predictions with generic categories 
+        # Make predictions with generic categories
         predicted_y_categories = group_categories(y_test_labels, class_labels)
         predicted_categories = group_categories(y_pred_labels, class_labels)
-  
-        print("\nAccuracy with initial predictions: ", round(100 * accuracy_score(predicted_y_categories, predicted_categories), 2))
-        print("F1 score with initial predictions :", round(100 * f1_score(predicted_y_categories, predicted_categories, average='weighted'), 2))
+        predicted_categories_smooth = group_categories(smoothed_predictions, class_labels)
+
+        print("\nAccuracy with initial predictions: ",
+              round(100 * accuracy_score(predicted_y_categories, predicted_categories), 2))
+        print("F1 score with initial predictions :",
+              round(100 * f1_score(predicted_y_categories, predicted_categories, average='weighted'), 2))
         print("\nClassification Report for initial predictions: :")
         print(classification_report(predicted_y_categories, predicted_categories, target_names=category_labels))
 
-        # plot_confusion_matrix(predicted_y_categories, predicted_categories, smoothed_predictions, category_labels, chosen_model, filename)
+        plot_confusion_matrix_grouped(predicted_y_categories, predicted_categories, predicted_categories_smooth, category_labels, chosen_model, filename)
