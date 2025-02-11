@@ -18,7 +18,7 @@ contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 
-def apply_lowpass_filter(data, cutoff_freq, fs=25, order=4):
+def apply_lowpass_filter(data, cutoff_freq=11, fs=25, order=4):
     """
     Apply a low-pass Butterworth filter to the signal.
 
@@ -33,14 +33,6 @@ def apply_lowpass_filter(data, cutoff_freq, fs=25, order=4):
     b, a = butter(order, normalized_cutoff, btype='low')
     filtered_data = filtfilt(b, a, data)
     return filtered_data
-
-
-def filter_accelerometer_data(accel_x, accel_y, accel_z, cutoff_freq=11):
-    """Filter all three accelerometer axes"""
-    filtered_x = apply_lowpass_filter(accel_x, cutoff_freq)
-    filtered_y = apply_lowpass_filter(accel_y, cutoff_freq)
-    filtered_z = apply_lowpass_filter(accel_z, cutoff_freq)
-    return filtered_x, filtered_y, filtered_z
 
 
 def display_data(path, filename, testing):
@@ -84,21 +76,17 @@ def display_data(path, filename, testing):
         # plt.show()
 
 
-def jitter_data(data, noise_level=0.02):
+def add_noise_and_scale(data, noise_level=0.02, scale_range=(0.9, 1.1)):
     """
-    Adds random noise to accelerometer data.
+    Adds random noise and scale to accelerometer data.
     Returns:
     - Jittered data
     """
-    std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
-    noise = np.random.normal(loc=0.0, scale=noise_level * std_dev, size=data.shape)
-    jittered_data = data + noise
+    # std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
+    noise = np.random.normal(loc=0.0, scale=noise_level, size=data.shape)
+    scale_factor = np.random.uniform(scale_range[0], scale_range[1])
+    jittered_data = (data + noise) * scale_factor
     return jittered_data
-
-
-def scale_data(data, scale_range=(0.9, 1.1)):
-    scaling_factors = np.random.uniform(scale_range[0], scale_range[1], size=(data.shape[0], 1, 1))
-    return data * scaling_factors
 
 
 def create_sequences(X_data, Y_data, timesteps, unique_activities):
@@ -121,10 +109,9 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
-def train_test_split(path, timesteps, testing):
+def process_data(path, timesteps, testing):
     """
-    This function splits the data to train-test sets. After reading the csv file, it creates the train and test sets.
-    :return: train_data, test_data, unique_activities
+    Process time series data in windows
     """
     data = pd.read_csv(path)
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
@@ -132,61 +119,39 @@ def train_test_split(path, timesteps, testing):
     data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
     unique_activities = data['activity'].unique()
 
-    # data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'], data['accel_z'])
-    # if not testing:
-    #     scaler = RobustScaler()
-    #     data[['accel_x', 'accel_y', 'accel_z']] = scaler.fit_transform(data[['accel_x', 'accel_y', 'accel_z']])
-    #     dump(scaler, open(f'robust_scaler.pkl', 'wb'))
-    # else:
-    #     scaler = load(open(f'robust_scaler.pkl', 'rb'))
-    #     data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
-
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
+    print(x_data.shape)
+    if not testing:
+        # Create augmented windows
+        x_data_augmented = np.array([add_noise_and_scale(window) for window in x_data])
+        x_data = np.concatenate([x_data, x_data_augmented])
+        y_data_augmented = np.copy(y_data)
+        y_data = np.concatenate([y_data, y_data_augmented])
+
+    # Apply low-pass filter to each window
+    filtered_windows = np.zeros_like(x_data)
+    for i in range(len(x_data)):
+        for j in range(3):  # For each axis
+            filtered_windows[i, :, j] = apply_lowpass_filter(x_data[i, :, j])
+
+    # Scale the entire dataset
+    reshaped_data = filtered_windows.reshape(-1, 3)
+    scaler = RobustScaler()
+    scaled_data = scaler.fit_transform(reshaped_data)
+    final_x_data = scaled_data.reshape(len(x_data), timesteps, 3)
+    dump(scaler, open(f'robust_scaler.pkl', 'wb'))
 
     if not testing:
         np.random.seed(42)
         random = np.arange(0, len(y_data))
         np.random.shuffle(random)
-        x_data = x_data[random]
+        final_x_data = final_x_data[random]
         y_data = y_data[random]
 
-    # for activity in unique_activities:
-    #     print(f'Activity {activity}: {len(y_data[y_data == activity])}')
-
-    return x_data, y_data, unique_activities
-
-
-def augment_data(X_train, y_train):
-    # Add noise to original data
-    X_train_jittered = jitter_data(X_train, noise_level=0.02)
-    y_train_jittered = np.copy(y_train)
-
-    # Scale original data
-    X_train_scaled = scale_data(X_train)
-    y_train_scaled = np.copy(y_train)
-
-    # Concatenate original and augmented data
-    X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
-    y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
-
-    return X_train_augmented, y_train_augmented
+    return final_x_data, y_data, unique_activities
 
 
 def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test):
-    X_train_augmented = filter_accelerometer_data(X_train_augmented[:, :, 0], X_train_augmented[:, :, 1], X_train_augmented[:, :, 2])
-    X_test = filter_accelerometer_data(X_test[:, :, 0], X_test[:, :, 1], X_test[:, :, 2])
-    print(len(X_test))
-
-    scaler = RobustScaler()
-    # X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
-    X_train_flat = scaler.fit_transform(X_train_augmented)
-    # X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
-    dump(scaler, open(f'scaler.pkl', 'wb'))
-
-    # X_test_flat = X_test.reshape(-1, X_test.shape[-1])
-    X_test_flat = scaler.transform(X_test)
-    # X_test = X_test_flat.reshape(X_test.shape)
-
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder = hot_encoder.fit(y_train_augmented)
     y_train_augmented = hot_encoder.transform(y_train_augmented)
@@ -485,30 +450,29 @@ if __name__ == '__main__':
     category_labels = ['exercising', 'idle', 'sleeping', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
-    filename = f"{time_required_ms}ms_8_classes"
+    filename = f"{time_required_ms}ms_8_classes_final"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    # models = ['cnn_cnn_lstm']
-    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
-    X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
-    X_test, y_test, _ = train_test_split(test_path, samples_required, True)
+    models = ['cnn_cnn_lstm']
+    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    # X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
+    X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
+    # X_test, y_test, _ = train_test_split(test_path, samples_required, True)
+    X_test, y_test, _ = process_data(test_path, samples_required, True)
 
-    display_data(train_path, filename, False)
+    # display_data(train_path, filename, False)
     # display_data(test_path, filename, True)
 
     # Preprocess original and augmented data
-    X_train_augmented, y_train_augmented = augment_data(X_train, y_train)
-    X_train_augmented, y_train_augmented, X_test, y_test = preprocess_data(X_train_augmented, y_train_augmented,
-                                                                           X_test, y_test)
+    X_train, y_train, X_test, y_test = preprocess_data(X_train, y_train, X_test, y_test)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
-        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented,
-                                                                                    y_train_augmented, X_test, y_test,
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
                                                                                     train_model=True)
