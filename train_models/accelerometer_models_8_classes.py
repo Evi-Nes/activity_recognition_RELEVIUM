@@ -130,17 +130,16 @@ def train_test_split(path, timesteps, testing):
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
     data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
-
     unique_activities = data['activity'].unique()
-    data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'], data['accel_z'])
 
-    if not testing:
-        scaler = RobustScaler()
-        data[['accel_x', 'accel_y', 'accel_z']] = scaler.fit_transform(data[['accel_x', 'accel_y', 'accel_z']])
-        dump(scaler, open(f'robust_scaler.pkl', 'wb'))
-    else:
-        scaler = load(open(f'robust_scaler.pkl', 'rb'))
-        data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
+    # data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'], data['accel_z'])
+    # if not testing:
+    #     scaler = RobustScaler()
+    #     data[['accel_x', 'accel_y', 'accel_z']] = scaler.fit_transform(data[['accel_x', 'accel_y', 'accel_z']])
+    #     dump(scaler, open(f'robust_scaler.pkl', 'wb'))
+    # else:
+    #     scaler = load(open(f'robust_scaler.pkl', 'rb'))
+    #     data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
 
@@ -170,15 +169,24 @@ def augment_data(X_train, y_train):
     X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
     y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
 
-    # scaler = load(open(f'robust_scaler.pkl', 'rb'))
-    # X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
-    # X_train_flat = scaler.transform(X_train_flat)
-    # X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
-
     return X_train_augmented, y_train_augmented
 
 
 def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test):
+    X_train_augmented = filter_accelerometer_data(X_train_augmented[:, :, 0], X_train_augmented[:, :, 1], X_train_augmented[:, :, 2])
+    X_test = filter_accelerometer_data(X_test[:, :, 0], X_test[:, :, 1], X_test[:, :, 2])
+    print(len(X_test))
+
+    scaler = RobustScaler()
+    # X_train_flat = X_train_augmented.reshape(-1, X_train_augmented.shape[-1])
+    X_train_flat = scaler.fit_transform(X_train_augmented)
+    # X_train_augmented = X_train_flat.reshape(X_train_augmented.shape)
+    dump(scaler, open(f'scaler.pkl', 'wb'))
+
+    # X_test_flat = X_test.reshape(-1, X_test.shape[-1])
+    X_test_flat = scaler.transform(X_test)
+    # X_test = X_test_flat.reshape(X_test.shape)
+
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder = hot_encoder.fit(y_train_augmented)
     y_train_augmented = hot_encoder.transform(y_train_augmented)
@@ -484,8 +492,8 @@ if __name__ == '__main__':
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    models = ['cnn_cnn_lstm']
-    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    # models = ['cnn_cnn_lstm']
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_test, y_test, _ = train_test_split(test_path, samples_required, True)
 
@@ -503,7 +511,7 @@ if __name__ == '__main__':
                                                                                     y_train_augmented, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=False)
+                                                                                    train_model=True)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods
