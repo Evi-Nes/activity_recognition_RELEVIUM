@@ -121,8 +121,8 @@ def process_data(path, timesteps, testing):
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
     print(x_data.shape)
+    # Create augmented windows
     if not testing:
-        # Create augmented windows
         x_data_augmented = np.array([add_noise_and_scale(window) for window in x_data])
         x_data = np.concatenate([x_data, x_data_augmented])
         y_data_augmented = np.copy(y_data)
@@ -136,22 +136,34 @@ def process_data(path, timesteps, testing):
 
     # Scale the entire dataset
     reshaped_data = filtered_windows.reshape(-1, 3)
-    scaler = RobustScaler()
-    scaled_data = scaler.fit_transform(reshaped_data)
-    final_x_data = scaled_data.reshape(len(x_data), timesteps, 3)
-    dump(scaler, open(f'robust_scaler.pkl', 'wb'))
-
     if not testing:
+        scaler = RobustScaler()
+        scaled_data = scaler.fit_transform(reshaped_data)
+        final_x_data = scaled_data.reshape(len(x_data), timesteps, 3)
+        dump(scaler, open(f'robust_scaler.pkl', 'wb'))
+
         np.random.seed(42)
         random = np.arange(0, len(y_data))
         np.random.shuffle(random)
         final_x_data = final_x_data[random]
         y_data = y_data[random]
 
+    else:
+        scaler = load(open(f'robust_scaler.pkl', 'rb'))
+        scaled_data = scaler.transform(reshaped_data)
+        final_x_data = scaled_data.reshape(len(x_data), timesteps, 3)
+
+    # if not testing:
+        # np.random.seed(42)
+        # random = np.arange(0, len(y_data))
+        # np.random.shuffle(random)
+        # final_x_data = final_x_data[random]
+        # y_data = y_data[random]
+
     return final_x_data, y_data, unique_activities
 
 
-def preprocess_data(X_train_augmented, y_train_augmented, X_test, y_test):
+def onehot_encode_data(X_train_augmented, y_train_augmented, X_test, y_test):
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     hot_encoder = hot_encoder.fit(y_train_augmented)
     y_train_augmented = hot_encoder.transform(y_train_augmented)
@@ -457,8 +469,8 @@ if __name__ == '__main__':
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    models = ['cnn_cnn_lstm']
-    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    # models = ['cnn_cnn_lstm']
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     # X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
     # X_test, y_test, _ = train_test_split(test_path, samples_required, True)
@@ -467,15 +479,14 @@ if __name__ == '__main__':
     # display_data(train_path, filename, False)
     # display_data(test_path, filename, True)
 
-    # Preprocess original and augmented data
-    X_train, y_train, X_test, y_test = preprocess_data(X_train, y_train, X_test, y_test)
+    X_train, y_train, X_test, y_test = onehot_encode_data(X_train, y_train, X_test, y_test)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=True)
+                                                                                    train_model=False)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods
