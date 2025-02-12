@@ -73,10 +73,8 @@ def process_data(path, timesteps, testing):
     Process time series data in windows
     """
     data = pd.read_csv(path)
-    print('------')
     data = data[data['activity'] != 'lying']
     data = data[data['activity'] != 'sleeping']
-    print(data.head)
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z', 'gyro_x', 'gyro_y', 'gyro_z']]
     data = data.dropna()
     data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
