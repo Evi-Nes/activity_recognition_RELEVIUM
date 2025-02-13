@@ -49,8 +49,8 @@ def jitter_data(data, noise_level=0.01):
     - Jittered data
     """
     # noise = np.random.normal(0, noise_level, size=data.shape)
-    std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
-    noise = np.random.normal(loc=0.0, scale=noise_level * std_dev, size=data.shape)
+    # std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
+    noise = np.random.normal(loc=0.0, scale=noise_level , size=data.shape)
     jittered_data = data + noise
     return jittered_data
 
@@ -105,17 +105,17 @@ def train_test_split(path, timesteps, to_balance):
     # scaler = RobustScaler()
     # data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
 
-    data = data[['timestamp', 'activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
+    data = data[['activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
     data = data.dropna()
 
     # remove after new DREAMT data
     if to_balance:
-        lying_data = data[data['activity'] == 'W']
-        sleeping_data = data[data['activity'].isin(['N1', 'N2', 'N3', 'R'])]
+        lying_data = data[data['activity'] == 'lying']
+        sleeping_data = data[data['activity'] == 'sleeping']
         sleeping_data = sleeping_data[:int(len(data) * 0.6)]
         data = pd.concat([lying_data, sleeping_data])
 
-    data = data.replace({'W': 0, 'N1': 1, 'N2': 1, 'N3': 1, 'R': 1})
+    # data = data.replace({'W': 0, 'N1': 1, 'N2': 1, 'N3': 1, 'R': 1})
     unique_activities = data['activity'].unique()
 
     data_seq, activities_seq = create_sequences(data[['accel_x', 'accel_y', 'accel_z', 'hr']], data['activity'], timesteps, unique_activities)
@@ -168,23 +168,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     :return: the chosen sequential model
     """
     model = keras.Sequential()
-    if chosen_model == 'lstm_1':
-        model.add(keras.layers.LSTM(units=64, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'gru_1':
-        model.add(keras.layers.GRU(units=64, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'lstm_2':
-        model.add(keras.layers.LSTM(units=64, return_sequences=True, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.LSTM(units=32, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'gru_2':
-        model.add(keras.layers.GRU(units=64, return_sequences=True, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.3))
-    elif chosen_model == 'cnn_lstm':
+    if chosen_model == 'cnn_lstm':
         model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
         model.add(MaxPooling1D(pool_size=4))
         model.add(keras.layers.LSTM(units=32, return_sequences=False, input_shape=input_shape))
@@ -206,31 +190,12 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
         model.add(MaxPooling1D(pool_size=4))
         model.add(keras.layers.GRU(units=64, return_sequences=False, input_shape=input_shape))
         model.add(keras.layers.Dropout(rate=0.4))
-    elif chosen_model == 'cnn_cnn':
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.Flatten())
-        model.add(keras.layers.Dense(64, activation='relu'))
-        model.add(keras.layers.Dropout(rate=0.4))
-    elif chosen_model == '2cnn_2cnn':
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=2))
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu'))
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=2))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.Flatten())
-        model.add(keras.layers.Dense(64, activation='relu'))
-        model.add(keras.layers.Dropout(rate=0.4))
 
     model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
 
-    model.fit(X_train, y_train, epochs=40, batch_size=32, validation_split=0.3, verbose=2)
-    model.save(file_name)
+    model.fit(X_train, y_train, epochs=30, batch_size=32, validation_split=0.2, verbose=2)
+    model.save(f'{file_name}.keras')
 
     return model
 
@@ -370,9 +335,9 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 500000
+    time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
-    path = "../process_datasets/combined_dreamt_25Hz.csv"
+    path = "../process_datasets/final_dreamt_25Hz.csv"
     to_balance = True
 
     print(f'\nTraining with 2 classes with balanced data: {to_balance} from file: {path}')
@@ -380,10 +345,10 @@ if __name__ == '__main__':
     print(f'Frequency: {frequency} Hz \n')
 
     if to_balance:
-        filename = f"sleeping_{frequency}Hz_jittered"
+        filename = f"sleeping_{frequency}Hz_balanced_no_hr"
         print(filename)
     else:
-        filename = f"sleeping_{frequency}Hz_2_classes_unbalanced"
+        filename = f"sleeping_{frequency}Hz_unbalanced"
         print(filename)
 
     class_labels = ['lying', 'sleeping']
@@ -391,7 +356,7 @@ if __name__ == '__main__':
 
     # Implemented models
     models = ['cnn_cnn_lstm']
-    # models = ['gru_2', 'cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru', 'cnn_cnn', '2cnn_2cnn']
+    # models = ['cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required, to_balance)
 
     for chosen_model in models:
