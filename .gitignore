@@ -3,7 +3,7 @@
 **.zip
 **.h5
 **.keras
-**.pkl
+#**.pkl
 **.csv
 **.png
 **.json
