@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_csv('../process_datasets/combined_dataset.csv')
+df = pd.read_csv('combined_dataset.csv')
 print(df['activity'].value_counts())
 print(df.value_counts())
 
@@ -67,5 +67,5 @@ print(test_data['activity'].value_counts())
 print('Len of train data:', len(train_data))
 print('Len of test data: ', len(test_data))
 
-train_data.to_csv('../process_datasets/train_data.csv', index=False)
-test_data.to_csv('../process_datasets/test_data.csv', index=False)
+train_data.to_csv('train_data.csv', index=False)
+test_data.to_csv('test_data.csv', index=False)
