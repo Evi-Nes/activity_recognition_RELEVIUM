@@ -37,41 +37,26 @@ def create_sequences(X_data, Y_data, timesteps, unique_activities):
     return X_seq, Y_seq.reshape(-1, 1)
 
 
-def jitter_data(data, noise_level=0.01):
+def add_noise_and_scale(data, noise_level=0.02, scale_range=(0.9, 1.1)):
     """
-    Adds random noise to accelerometer data.
-
-    Parameters:
-    - data: np.array of shape (num_samples, window_size, num_axes)
-    - noise_level: float, standard deviation of Gaussian noise
-
+    Adds random noise and scale to accelerometer data.
     Returns:
     - Jittered data
     """
-    # noise = np.random.normal(0, noise_level, size=data.shape)
-    # std_dev = np.std(data, axis=(1, 2), keepdims=True)  # Compute per-sample std deviation
-    noise = np.random.normal(loc=0.0, scale=noise_level , size=data.shape)
-    jittered_data = data + noise
+    noise = np.random.normal(loc=0.0, scale=noise_level, size=data.shape)
+    scale_factor = np.random.uniform(scale_range[0], scale_range[1])
+    jittered_data = (data + noise) * scale_factor
     return jittered_data
 
 
-def scale_data(data, scale_range=(0.9, 1.1)):
-    scaling_factors = np.random.uniform(scale_range[0], scale_range[1], size=(data.shape[0], 1, 1))
-    return data * scaling_factors
-
-
 def jittering_data(X_train, y_train):
-    # Add noise to original data
-    X_train_jittered = jitter_data(X_train, noise_level=0.02)
+    # Add noise and scale original data
+    X_train_jittered = add_noise_and_scale(X_train, noise_level=0.02)
     y_train_jittered = np.copy(y_train)
 
-    # Scale original data
-    X_train_scaled = scale_data(X_train)
-    y_train_scaled = np.copy(y_train)
-
     # Concatenate original and augmented data
-    X_train_augmented = np.concatenate((X_train, X_train_scaled, X_train_jittered), axis=0)
-    y_train_augmented = np.concatenate((y_train, y_train_scaled, y_train_jittered), axis=0)
+    X_train_augmented = np.concatenate((X_train, X_train_jittered), axis=0)
+    y_train_augmented = np.concatenate((y_train, y_train_jittered), axis=0)
 
     return X_train_augmented, y_train_augmented
 
@@ -104,7 +89,6 @@ def train_test_split(path, timesteps, to_balance):
     # columns_to_scale = ['accel_x', 'accel_y', 'accel_z', 'hr']
     # scaler = RobustScaler()
     # data[columns_to_scale] = scaler.fit_transform(data[columns_to_scale])
-
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z', 'hr']]
     data = data.dropna()
 
@@ -216,7 +200,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
         input_shape = (X_train.shape[1], X_train.shape[2])
         model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
     else:
-        model = keras.models.load_model(file_name)
+        model = keras.models.load_model(f'{file_name}.keras')
 
     loss, accuracy = model.evaluate(X_train, y_train)
     print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
@@ -266,8 +250,8 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
 
-    print(activity_predictions_true)
-    print(activity_predictions_smoothed)
+    # print(activity_predictions_true)
+    # print(activity_predictions_smoothed)
 
     return y_test_labels, y_pred_labels, smoothed_predictions
 
@@ -339,24 +323,22 @@ if __name__ == '__main__':
     samples_required = int(time_required_ms * frequency / 1000)
     path = "../process_datasets/final_dreamt_25Hz.csv"
     to_balance = True
+    class_labels = ['lying', 'sleeping']
 
     print(f'\nTraining with 2 classes with balanced data: {to_balance} from file: {path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f'Frequency: {frequency} Hz \n')
 
     if to_balance:
-        filename = f"sleeping_{frequency}Hz_balanced_no_hr"
+        filename = f"sleeping_{frequency}Hz_balanced_with_hr"
         print(filename)
     else:
         filename = f"sleeping_{frequency}Hz_unbalanced"
         print(filename)
 
-    class_labels = ['lying', 'sleeping']
-    # class_labels = ['W', 'N1', 'N2', 'N3', 'R']
-
     # Implemented models
-    models = ['cnn_cnn_lstm']
-    # models = ['cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    # models = ['cnn_cnn_lstm']
+    models = ['cnn_lstm', 'cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, X_test, y_test, unique_activities = train_test_split(path, samples_required, to_balance)
 
     for chosen_model in models:

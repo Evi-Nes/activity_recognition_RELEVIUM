@@ -45,6 +45,8 @@ def display_data(path, filename, testing):
     data = pd.read_csv(path)
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
+    data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
+    data['activity'] = data['activity'].replace('dynamic_exercising', 'exercising')
     unique_activities = data['activity'].unique()
 
     for activity in unique_activities:
@@ -53,14 +55,9 @@ def display_data(path, filename, testing):
 
         subset.plot(subplots=True, figsize=(10, 10))
         plt.xlabel('Time')
-        if testing:
-            plt.savefig(f'files_{filename}/plots_{filename}/unscaled_test_{activity}.png')
-        else:
-            plt.savefig(f'files_{filename}/plots_{filename}/unscaled_train_{activity}.png')
+        plt.savefig(f'files_{filename}/plots_{filename}/unscaled_{activity}2.png')
 
-    scaler = load(open(f'scaler_flat.pkl', 'rb'))
-    data['accel_x'], data['accel_y'], data['accel_z'] = filter_accelerometer_data(data['accel_x'], data['accel_y'],
-                                                                                  data['accel_z'])
+    scaler = load(open(f'robust_scaler.pkl', 'rb'))
     data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
 
     for activity in unique_activities:
@@ -69,11 +66,7 @@ def display_data(path, filename, testing):
 
         subset.plot(subplots=True, figsize=(10, 10))
         plt.xlabel('Time')
-        if testing:
-            plt.savefig(f'files_{filename}/plots_{filename}11scaled_test_{activity}.png')
-        else:
-            plt.savefig(f'files_{filename}/plots_{filename}/11scaled_train_{activity}.png')
-        # plt.show()
+        plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}2.png')
 
 
 def add_noise_and_scale(data, noise_level=0.02, scale_range=(0.9, 1.1)):
@@ -120,7 +113,7 @@ def process_data(path, timesteps, testing):
     unique_activities = data['activity'].unique()
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
-    print(x_data.shape)
+
     # Create augmented windows
     if not testing:
         x_data_augmented = np.array([add_noise_and_scale(window) for window in x_data])
@@ -147,18 +140,10 @@ def process_data(path, timesteps, testing):
         np.random.shuffle(random)
         final_x_data = final_x_data[random]
         y_data = y_data[random]
-
     else:
         scaler = load(open(f'robust_scaler.pkl', 'rb'))
         scaled_data = scaler.transform(reshaped_data)
         final_x_data = scaled_data.reshape(len(x_data), timesteps, 3)
-
-    # if not testing:
-        # np.random.seed(42)
-        # random = np.arange(0, len(y_data))
-        # np.random.shuffle(random)
-        # final_x_data = final_x_data[random]
-        # y_data = y_data[random]
 
     return final_x_data, y_data, unique_activities
 
@@ -212,10 +197,10 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
 
     model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adam',
-                  metrics=[keras.metrics.CategoricalAccuracy()])  # ['acc']
+                  metrics=[keras.metrics.CategoricalAccuracy()])
 
     model.fit(X_train, y_train, epochs=30, batch_size=64, validation_split=0.2, verbose=2)
-    model.save(file_name)
+    model.save(f'{file_name}.keras')
 
     return model
 
@@ -486,7 +471,7 @@ if __name__ == '__main__':
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=False)
+                                                                                    train_model=True)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods

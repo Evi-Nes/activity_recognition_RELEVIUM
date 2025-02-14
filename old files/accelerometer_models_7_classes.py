@@ -9,11 +9,54 @@ import tensorflow as tf
 from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
 from keras.src.layers import MaxPooling1D, Conv1D, Layer
+from sklearn.model_selection import StratifiedKFold
 
 # Redirect stderr to /dev/null to silence warnings
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+
+
+def plot_data_distribution(y_train, y_test, unique_activities, filename):
+    """
+    This function plots the number of instances per activity (the distribution of the data).
+    """
+    if not os.path.exists(f'plots_{filename}'):
+        os.makedirs(f'plots_{filename}')
+    y_train = pd.DataFrame(y_train)
+    y_test = pd.DataFrame(y_test)
+    data = pd.concat([y_train, y_test], ignore_index=True)
+    data = data.replace(
+        {'0': 'cycling', '1': 'dynamic_exercising', '2': 'lying', '3': 'running', '4': 'sitting', '5': 'standing',
+         '6': 'static_exercising', '7': 'walking'})
+    class_counts = data.value_counts()
+
+    plt.figure(figsize=(10, 10))
+    class_counts.plot(kind='bar')
+    plt.xlabel('Activity')
+    plt.ylabel('Number of Instances')
+    plt.xticks(rotation=45)
+    plt.savefig(f'files_{filename}/plots_{filename}/data_distribution.png')
+    # plt.show()
+
+
+def display_data(data, unique_activities):
+    """
+    This function plots subsets of the data as timeseries, to visualize the form of the data.
+    """
+    if not os.path.exists('plots'):
+        os.makedirs('plots')
+
+    for activity in unique_activities:
+        subset = data[data['activity'] == activity].iloc[400:600]
+        subset = subset.drop(['activity'], axis=1)
+
+        subset.plot(subplots=True, figsize=(10, 10))
+        plt.xlabel('Time')
+        plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}_data.png')
+        # plt.show()
 
 
 def jitter_data(data, noise_level=0.01):
@@ -210,7 +253,11 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     classification report.
     :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
     """
-    file_name = f'final_models/acc_{chosen_model}_model.h5'
+    if not os.path.exists(f'files_{filename}/saved_models_{filename}'):
+        os.makedirs(f'files_{filename}/saved_models_{filename}')
+
+    file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.h5'
+    # file_name = f'files_{filename}/acc_{chosen_model}_model_1.h5'
 
     if train_model:
         input_shape = (X_train.shape[1], X_train.shape[2])
@@ -267,85 +314,103 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     for i in range(0, len(smoothed_predictions)):
         activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
 
-    smoothed_predictions = np.array(smoothed_predictions)
     return y_test_labels, y_pred_labels, smoothed_predictions
 
 
-def sleeping_train_sequential_model(X_test, y_test, chosen_model, class_labels):
-    file_name = f'final_models/acc_{chosen_model}_sleeping_model.h5'
-    model = keras.models.load_model(file_name)
+def cross_validation_models(X_train_init, y_train_init, X_test_init, y_test_init, chosen_model, class_labels, filename):
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=None)
+    fold_no = 1
+    X = np.concatenate((X_train_init, X_test_init), axis=0)
+    y = np.concatenate((y_train_init, y_test_init), axis=0)
+    acc_per_fold = []
+    loss_per_fold = []
 
-    windows_per_group = 50
-    num_samples = X_test.shape[0]
-    if num_samples % windows_per_group != 0:
-        print(f"Warning: Data length {num_samples} is not a multiple of {windows_per_group}. Some data may be ignored.")
+    for train_index, test_index in kf.split(X, y):
+        X_train = X[train_index]
+        y_train = y[train_index]
+        X_test = X[test_index]
+        y_test = y[test_index]
 
-    # New shape: (num_groups, windows_per_group * samples_per_window, num_features)
-    X_test = X_test[:num_samples - (num_samples % windows_per_group)]
-    grouped_data = X_test.reshape(-1, windows_per_group * X_test.shape[1], X_test.shape[2])
-    print(grouped_data.shape)
+        unique, counts = np.unique(y_train, return_counts=True)
+        print(np.asarray((unique, counts)).T)
+        unique, counts = np.unique(y_test, return_counts=True)
+        print(np.asarray((unique, counts)).T)
 
-    # print('Y_test', y_test.shape)
-    # y_test = y_test[:num_samples - (num_samples % windows_per_group)]
-    # reshaped_labels = y_test.reshape(-1, windows_per_group, 8)
+        hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+        hot_encoder = hot_encoder.fit(y_train)
+        y_train = hot_encoder.transform(y_train)
+        y_test = hot_encoder.transform(y_test)
 
-    # # Find the most common label in each group
-    # y_test = mode(reshaped_labels, axis=1).mode.flatten()
-    # print("New shape of data:", y_test.shape)
+        input_shape = (X_train.shape[1], X_train.shape[2])
+        file_name = ''
 
-    probabilities = model.predict(grouped_data)
-    print("probabilities: ", probabilities)
-    window_size = 6
-    threshold = 0.8
-    # y_test_labels = np.argmax(y_test, axis=1)
-    y_pred_labels = np.argmax(probabilities, axis=1)
-    smoothed_probs = np.zeros_like(probabilities)
+        print('------------------------------------------------------------------------')
+        print(f'Training for fold {fold_no} ...')
+        model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
+        history = model.fit(
+            X_train, y_train,
+            batch_size=64,
+            epochs=40,
+            validation_split=0.2, 
+            verbose=2,
+        )
 
-    for i in range(len(probabilities)):
-        start = max(0, i - window_size + 1)
-        end = i + 1
-        smoothed_probs[i] = np.mean(probabilities[start:end], axis=0)
+        model.save(f"files_{filename}/acc_{chosen_model}_model_{fold_no}.h5")
+        scores = model.evaluate(X_test, y_test)
+        print(
+            f'Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1] * 100}%')
+        acc_per_fold.append(scores[1] * 100)
+        loss_per_fold.append(scores[0])
 
-    smoothed_predictions = []
-    for i, probs in enumerate(smoothed_probs):
-        max_prob = np.max(probs)
-        if max_prob >= threshold:
-            smoothed_predictions.append(np.argmax(probs))
-        else:
-            # If below threshold, retain previous prediction or mark as uncertain (-1)
-            smoothed_predictions.append(smoothed_predictions[-1] if smoothed_predictions else 0)
+        # extra metrics
+        probabilities = model.predict(X_test)
 
-    smoothed_predictions = np.array(smoothed_predictions)
-    print('Predictions: ', y_pred_labels)
-    print('Smoothed predictions: ', smoothed_predictions)
+        window_size = 3
+        threshold = 0.8
+        y_test_labels = np.argmax(y_test, axis=1)
+        y_pred_labels = np.argmax(probabilities, axis=1)
+        smoothed_probs = np.zeros_like(probabilities)
 
-    # # Calculate accuracy and other metrics
-    # print("#### Sleeping-Lying ####")
-    # print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
-    # print("F1 score with initial predictions :", round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
-    # print("Accuracy with smoothed predictions: ", round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
-    # print("F1 score with smoothed predictions: ", round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
-    # print("\nClassification Report for initial predictions: :")
-    # print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
-    # print("\nClassification Report for smoothed predictions: :")
-    # print(classification_report(y_test_labels, smoothed_predictions, target_names=class_labels))
+        for i in range(len(probabilities)):
+            start = max(0, i - window_size + 1)
+            end = i + 1
+            smoothed_probs[i] = np.mean(probabilities[start:end], axis=0)
 
-    # activity_predictions_true = np.empty(len(y_test_labels), dtype=object)
-    # for i in range(0, len(y_test_labels)):
-    #     activity_predictions_true[i] = class_labels[y_test_labels[i]]
+        smoothed_predictions = []
+        for i, probs in enumerate(smoothed_probs):
+            max_prob = np.max(probs)
+            if max_prob >= threshold:
+                smoothed_predictions.append(np.argmax(probs))
+            else:
+                # If below threshold, retain previous prediction or mark as uncertain (-1)
+                smoothed_predictions.append(smoothed_predictions[-1] if smoothed_predictions else 5)
 
-    # activity_predictions = np.empty(len(y_pred_labels), dtype=object)
-    # for i in range(0, len(y_pred_labels)):
-    #     activity_predictions[i] = class_labels[y_pred_labels[i]]
+        # Calculate accuracy and other metrics
+        print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
+        print("F1 score with initial predictions :",
+              round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
+        print("Accuracy with smoothed predictions: ",
+              round(100 * accuracy_score(y_test_labels, smoothed_predictions), 2))
+        print("F1 score with smoothed predictions: ",
+              round(100 * f1_score(y_test_labels, smoothed_predictions, average='weighted'), 2))
+        print("\nClassification Report for initial predictions: :")
+        print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
+        print("\nClassification Report for smoothed predictions: :")
+        print(classification_report(y_test_labels, smoothed_predictions, target_names=class_labels))
 
-    # activity_predictions_smoothed = np.empty(len(smoothed_predictions), dtype=object)
-    # for i in range(0, len(smoothed_predictions)):
-    #     activity_predictions_smoothed[i] = class_labels[smoothed_predictions[i]]
+        # Increase fold number
+        fold_no = fold_no + 1
 
-    # print(activity_predictions_true)
-    # print(activity_predictions_smoothed)
-
-    # return y_test_labels, y_pred_labels, smoothed_predictions
+    print('------------------------------------------------------------------------')
+    print('Score per fold')
+    for i in range(0, len(acc_per_fold)):
+        print('------------------------------------------------------------------------')
+        print(f'> Fold {i + 1} - Loss: {loss_per_fold[i]} - Accuracy: {acc_per_fold[i]}%')
+    print('------------------------------------------------------------------------')
+    print('Average scores for all folds:')
+    print(f'> Accuracy: {np.mean(acc_per_fold)} (+- {np.std(acc_per_fold)})')
+    print(f'> Loss: {np.mean(loss_per_fold)}')
+    print('\n')
 
 
 def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
@@ -414,17 +479,18 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
-    sleeping_class_labels = ['lying', 'sleeping']
+
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"main_{time_required_ms}ms"
+    filename = f"{time_required_ms}ms"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    models = ['cnn_cnn_lstm']
+    # models = ['cnn_cnn_lstm']
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_test, y_test, _ = train_test_split(test_path, samples_required, True)
 
@@ -432,46 +498,13 @@ if __name__ == '__main__':
     X_train_augmented, y_train_augmented = jittering_data(X_train, y_train)
     X_train_augmented, y_train_augmented, X_test, y_test = preprocessing_data(X_train_augmented, y_train_augmented, X_test, y_test)
 
+    # Uncomment if you want to plot the distribution of the data
+    # plot_data_distribution(y_train, y_test, unique_activities, filename)
+
     for chosen_model in models:
         print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model,
                                                                 class_labels, filename, train_model=False)
+        # cross_validation_models(X_train_augmented, y_train_augmented, X_test, y_test, chosen_model, class_labels, filename)
+
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
-        
-        # lying_indices = np.where(y_pred_labels == 2)[0]
-        # # print('lying predictions', lying_predictions)
-        # lying_samples = X_test[lying_indices]
-        # lying_lables = y_test[lying_indices]
-        # print(lying_samples.shape)
-        # sleeping_train_sequential_model(lying_samples, lying_lables, chosen_model, sleeping_class_labels)
-        # single_labels = np.argmax(y_pred_labels, axis=1)
-
-        # Remove consecutive duplicates
-        print('For initial predictions')
-        grouped_labels = [y_pred_labels[0]]
-        for label in y_pred_labels[1:]:
-            if label != grouped_labels[-1]:
-                grouped_labels.append(label)
-
-        grouped_labels = np.array(grouped_labels)
-        grouped_class_labels = [class_labels[label] for label in grouped_labels]
-        print("Original labels:", y_pred_labels)
-        print(y_pred_labels.shape)
-        print("Grouped labels:", grouped_labels)
-        print(grouped_labels.shape)
-        print("Grouped class labels:", grouped_class_labels)
-
-        # For smoothed predictions
-        print('\n For smoothed predictions')
-        grouped_labels = [smoothed_predictions[0]]
-        for label in smoothed_predictions[1:]:
-            if label != grouped_labels[-1]:
-                grouped_labels.append(label)
-
-        grouped_labels = np.array(grouped_labels)
-        grouped_class_labels = [class_labels[label] for label in grouped_labels]
-        print("Original labels:", smoothed_predictions)
-        print(smoothed_predictions.shape)
-        print("Grouped labels:", grouped_labels)
-        print(grouped_labels.shape)
-        print("Grouped class labels:", grouped_class_labels)
