@@ -269,10 +269,10 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
     for norm_value in normalize_cm:
         if norm_value == 'true':
             format = '.2f'
-            plot_name = f'acc_{chosen_model}_cm_norm_inital.png'
+            plot_name = f'acc_{chosen_model}_cm_norm_inital_transfer.png'
         else:
             format = 'd'
-            plot_name = f'acc_{chosen_model}_cm_initial.png'
+            plot_name = f'acc_{chosen_model}_cm_initial_transfer.png'
 
         disp = ConfusionMatrixDisplay.from_predictions(
             y_test_labels, y_pred_labels,
@@ -289,7 +289,6 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
         plt.xticks(rotation=70)
         plt.tight_layout()
         plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
-
 
 
 def plot_confusion_matrix_grouped(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
@@ -390,8 +389,8 @@ def retrain_model(X_train, y_train, X_test, y_test, chosen_model):
     new_model = Model(inputs=model_without_last_layer.input, outputs=new_layer)
 
     # Compile the new model
-    new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    new_model.fit(X_train, y_train, validation_split=0.2, epochs=10, batch_size=32, verbose=2)
+    new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=[keras.metrics.CategoricalAccuracy()])
+    new_model.fit(X_train, y_train, validation_split=0.2, epochs=15, batch_size=64, verbose=2)
     new_model.save(f'models/acc_retrained_{chosen_model}_model.h5')
     # new_model.summary()
 
