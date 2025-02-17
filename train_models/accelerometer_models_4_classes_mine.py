@@ -45,8 +45,6 @@ def display_data(path, filename, testing):
     data = pd.read_csv(path)
     data = data[['activity', 'accel_x', 'accel_y', 'accel_z']]
     data = data.dropna()
-    data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
-    data['activity'] = data['activity'].replace('dynamic_exercising', 'exercising')
     unique_activities = data['activity'].unique()
 
     for activity in unique_activities:
@@ -55,18 +53,18 @@ def display_data(path, filename, testing):
 
         subset.plot(subplots=True, figsize=(10, 10))
         plt.xlabel('Time')
-        plt.savefig(f'files_{filename}/plots_{filename}/unscaled_{activity}2.png')
+        plt.savefig(f'files_{filename}/plots_{filename}/unscaled_{activity}.png')
 
-    scaler = load(open(f'robust_scaler.pkl', 'rb'))
-    data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
-
-    for activity in unique_activities:
-        subset = data[data['activity'] == activity].iloc[200:600]
-        subset = subset.drop(['activity'], axis=1)
-
-        subset.plot(subplots=True, figsize=(10, 10))
-        plt.xlabel('Time')
-        plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}2.png')
+    # scaler = load(open(f'robust_scaler.pkl', 'rb'))
+    # data[['accel_x', 'accel_y', 'accel_z']] = scaler.transform(data[['accel_x', 'accel_y', 'accel_z']])
+    #
+    # for activity in unique_activities:
+    #     subset = data[data['activity'] == activity].iloc[200:600]
+    #     subset = subset.drop(['activity'], axis=1)
+    #
+    #     subset.plot(subplots=True, figsize=(10, 10))
+    #     plt.xlabel('Time')
+    #     plt.savefig(f'files_{filename}/plots_{filename}/scaled_{activity}2.png')
 
 
 def add_noise_and_scale(data, noise_level=0.02, scale_range=(0.9, 1.1)):
@@ -156,13 +154,11 @@ def process_data(path, timesteps, testing):
     return final_x_data, y_data, unique_activities
 
 
-def onehot_encode_data(X_train_augmented, y_train_augmented, X_test, y_test):
+def onehot_encode_data(X_test, y_test):
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    hot_encoder = hot_encoder.fit(y_train_augmented)
-    y_train_augmented = hot_encoder.transform(y_train_augmented)
-    y_test = hot_encoder.transform(y_test)
+    y_test = hot_encoder.fit_transform(y_test)
 
-    return X_train_augmented, y_train_augmented, X_test, y_test
+    return X_test, y_test
 
 
 def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name):
@@ -213,7 +209,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
     return model
 
 
-def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class_labels, filename, train_model):
+def train_sequential_model(X_test, y_test, chosen_model, class_labels, filename, train_model):
     """
     This function is used to train the sequential models. If train_model == True, then it trains the model using
     X-train, y_train, else it loads the model from the existing file. Then, it evaluates the model and prints the
@@ -224,22 +220,16 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
         os.makedirs(f'files_{filename}/saved_models_{filename}')
 
     file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.keras'
-
-    if train_model:
-        input_shape = (X_train.shape[1], X_train.shape[2])
-        model = create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name)
-    else:
-        model = keras.models.load_model(file_name)
-
-    loss, accuracy = model.evaluate(X_train, y_train)
-    print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
+    model = keras.models.load_model(file_name)
 
     probabilities = model.predict(X_test)
     print(probabilities)
+    print(y_test)
     window_size = 3
     threshold = 0.7
     y_test_labels = np.argmax(y_test, axis=1)
     y_pred_labels = np.argmax(probabilities, axis=1)
+    print(y_test_labels)
     print(y_pred_labels)
 
     smoothed_predictions = []
@@ -395,33 +385,33 @@ if __name__ == '__main__':
     # class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
     class_labels = ['sitting', 'standing', 'walking']
     category_labels = ['exercising', 'idle', 'sleeping', 'walking']
-    train_path = "../process_datasets/train_data_9.csv"
+    # train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
     my_test_path = "../process_datasets/final_my_data_collector.csv"
     filename = f"{time_required_ms}ms_3_classes_mine"
 
-    print(f'\nTraining 8 classes from file: {train_path}')
+    # print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
     models = ['cnn_cnn_lstm']
     # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
-    X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
+    # X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
     # X_test, y_test, _ = process_data(test_path, samples_required, True)
     X_test, y_test, _ = process_data(my_test_path, samples_required, True)
 
     # display_data(train_path, filename, False)
-    # display_data(test_path, filename, True)
+    display_data(my_test_path, filename, True)
 
-    X_train, y_train, X_test, y_test = onehot_encode_data(X_train, y_train, X_test, y_test)
+    X_test, y_test = onehot_encode_data(X_test, y_test)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
-        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
+        y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=True)
+                                                                                    train_model=False)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Make predictions with generic categories
