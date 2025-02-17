@@ -115,7 +115,9 @@ def process_data(path, timesteps, testing):
         data = data[data['activity'] != 'sleeping']
         data = data[data['activity'] != 'lying']
         data = data[data['activity'] != 'cycling']
+        data = data[data['activity'] != 'running']
 
+    print(data['activity'].value_counts())
     unique_activities = data['activity'].unique()
 
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
@@ -391,12 +393,12 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     # class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
-    class_labels = ['running', 'sitting', 'standing', 'walking']
+    class_labels = ['sitting', 'standing', 'walking']
     category_labels = ['exercising', 'idle', 'sleeping', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
     my_test_path = "../process_datasets/final_my_data_collector.csv"
-    filename = f"{time_required_ms}ms_4_classes_mine"
+    filename = f"{time_required_ms}ms_3_classes_mine"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
@@ -419,7 +421,7 @@ if __name__ == '__main__':
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=False)
+                                                                                    train_model=True)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Make predictions with generic categories
