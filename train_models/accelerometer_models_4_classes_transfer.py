@@ -118,48 +118,66 @@ def process_data(path, timesteps, testing):
 
     print(data['activity'].value_counts())
     unique_activities = data['activity'].unique()
+    data_train = []
+    data_train = pd.DataFrame(data_train)
+    data_train_sample = []
+    data_test = []
+    data_test = pd.DataFrame(data_test)
+    data_test_sample = []
+    for activity in unique_activities:
+        sample = data[data['activity'] == activity]
+        data_train_sample = sample[:int(len(sample) * 0.7)]
+        data_train_sample = pd.DataFrame(data_train_sample)
+        data_train = pd.concat([data_train, data_train_sample])
 
-    x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
+        data_test_sample = sample[int(len(sample) * 0.7):]
+        data_test_sample = pd.DataFrame(data_test_sample)
+        data_test = pd.concat([data_test, data_test_sample])
 
-    # Create augmented windows
-    if not testing:
-        x_data_augmented = np.array([add_noise_and_scale(window) for window in x_data])
-        x_data = np.concatenate([x_data, x_data_augmented])
-        y_data_augmented = np.copy(y_data)
-        y_data = np.concatenate([y_data, y_data_augmented])
+
+    # data_train = [item for row in data_train for item in row]
+    print(data_train.shape)
+    data_train = pd.DataFrame(data_train, columns=['activity', 'accel_x', 'accel_y', 'accel_z'])
+    data_test = pd.DataFrame(data_test, columns=['activity', 'accel_x', 'accel_y', 'accel_z'])
+
+    x_data_train, y_data_train = create_sequences(data_train[['accel_x', 'accel_y', 'accel_z']], data_train['activity'], timesteps, unique_activities)
+    x_data_test, y_data_test = create_sequences(data_test[['accel_x', 'accel_y', 'accel_z']], data_test['activity'], timesteps, unique_activities)
+    print(x_data_test.shape)
 
     # Apply low-pass filter to each window
-    filtered_windows = np.zeros_like(x_data)
-    for i in range(len(x_data)):
+    filtered_windows = np.zeros_like(x_data_train)
+    for i in range(len(x_data_train)):
         for j in range(3):  # For each axis
-            filtered_windows[i, :, j] = apply_lowpass_filter(x_data[i, :, j])
+            filtered_windows[i, :, j] = apply_lowpass_filter(x_data_train[i, :, j])
 
     # Scale the entire dataset
     reshaped_data = filtered_windows.reshape(-1, 3)
-    if not testing:
-        scaler = RobustScaler()
-        scaled_data = scaler.fit_transform(reshaped_data)
-        final_x_data = scaled_data.reshape(len(x_data), timesteps, 3)
-        dump(scaler, open(f'robust_scaler.pkl', 'wb'))
+    scaler = load(open(f'robust_scaler.pkl', 'rb'))
+    scaled_data = scaler.transform(reshaped_data)
+    final_x_data_train = scaled_data.reshape(len(x_data_train), timesteps, 3)
 
-        np.random.seed(42)
-        random = np.arange(0, len(y_data))
-        np.random.shuffle(random)
-        final_x_data = final_x_data[random]
-        y_data = y_data[random]
-    else:
-        scaler = load(open(f'robust_scaler.pkl', 'rb'))
-        scaled_data = scaler.transform(reshaped_data)
-        final_x_data = scaled_data.reshape(len(x_data), timesteps, 3)
+    # Testing data
+    # Apply low-pass filter to each window
+    filtered_windows_test = np.zeros_like(x_data_test)
+    for i in range(len(x_data_test)):
+        for j in range(3):  # For each axis
+            filtered_windows_test[i, :, j] = apply_lowpass_filter(x_data_test[i, :, j])
 
-    return final_x_data, y_data, unique_activities
+    # Scale the entire dataset
+    reshaped_data = filtered_windows_test.reshape(-1, 3)
+    scaler = load(open(f'robust_scaler.pkl', 'rb'))
+    scaled_data = scaler.transform(reshaped_data)
+    final_x_data_test = scaled_data.reshape(len(x_data_test), timesteps, 3)
+
+    return final_x_data_train, y_data_train, final_x_data_test, y_data_test, unique_activities
 
 
-def onehot_encode_data(X_test, y_test):
+def onehot_encode_data(y_train, y_test):
     hot_encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
-    y_test = hot_encoder.fit_transform(y_test)
+    y_train = hot_encoder.fit_transform(y_train)
+    y_test = hot_encoder.transform(y_test)
 
-    return X_test, y_test
+    return y_train, y_test
 
 
 def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name):
@@ -390,7 +408,7 @@ def retrain_model(X_train, y_train, X_test, y_test, chosen_model):
 
     # Compile the new model
     new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=[keras.metrics.CategoricalAccuracy()])
-    new_model.fit(X_train, y_train, validation_split=0.2, epochs=15, batch_size=64, verbose=2)
+    new_model.fit(X_train, y_train, validation_split=0.2, epochs=20, batch_size=64, verbose=2)
     new_model.save(f'models/acc_retrained_{chosen_model}_model.h5')
     # new_model.summary()
 
@@ -409,6 +427,7 @@ def retrain_model(X_train, y_train, X_test, y_test, chosen_model):
     print(report)
 
     return y_test_labels, y_pred_labels
+
 
 if __name__ == '__main__':
     frequency = 25
@@ -431,12 +450,12 @@ if __name__ == '__main__':
     # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     # X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
     # X_test, y_test, _ = process_data(test_path, samples_required, True)
-    X_test, y_test, _ = process_data(my_test_path, samples_required, True)
+    X_train, y_train, X_test, y_test, _ = process_data(my_test_path, samples_required, True)
 
     # display_data(train_path, filename, False)
     # display_data(my_test_path, filename, True)
 
-    X_test, y_test = onehot_encode_data(X_test, y_test)
+    y_train, y_test = onehot_encode_data(y_train, y_test)
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
@@ -444,7 +463,7 @@ if __name__ == '__main__':
         #                                                                             chosen_model,
         #                                                                             class_labels, filename,
         #                                                                             train_model=False)
-        y_test_labels, y_pred_labels = retrain_model(X_test, y_test, X_test, y_test, chosen_model)
+        y_test_labels, y_pred_labels = retrain_model(X_train, y_train, X_test, y_test, chosen_model)
         smoothed_predictions = []
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
