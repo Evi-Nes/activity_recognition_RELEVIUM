@@ -409,7 +409,7 @@ def retrain_model(X_train, y_train, X_test, y_test, chosen_model):
     # Compile the new model
     new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=[keras.metrics.CategoricalAccuracy()])
     new_model.fit(X_train, y_train, validation_split=0.2, epochs=20, batch_size=64, verbose=2)
-    new_model.save(f'models/acc_retrained_{chosen_model}_model.h5')
+    new_model.save(f'files_{filename}/saved_models_{filename}/acc_retrained_{chosen_model}_model.h5')
     # new_model.summary()
 
     loss, accuracy = new_model.evaluate(X_train, y_train)
@@ -437,7 +437,7 @@ if __name__ == '__main__':
     class_labels = ['lying', 'running', 'sitting', 'standing', 'walking']
     category_labels = ['exercising', 'idle', 'walking']
     my_test_path = "../process_datasets/final_my_data_collector.csv"
-    filename = f"{time_required_ms}ms_6_classes_transfer"
+    filename = f"{time_required_ms}ms_5_classes_transfer"
 
     # print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
