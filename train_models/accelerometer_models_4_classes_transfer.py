@@ -434,12 +434,10 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     # class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
-    class_labels = ['sitting', 'standing', 'walking']
-    category_labels = ['exercising', 'idle', 'sleeping', 'walking']
-    # train_path = "../process_datasets/train_data_9.csv"
-    # test_path = "../process_datasets/test_data_9.csv"
+    class_labels = ['lying', 'running', 'sitting', 'standing', 'walking']
+    category_labels = ['exercising', 'idle', 'walking']
     my_test_path = "../process_datasets/final_my_data_collector.csv"
-    filename = f"{time_required_ms}ms_3_classes_mine"
+    filename = f"{time_required_ms}ms_6_classes_transfer"
 
     # print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
@@ -459,10 +457,6 @@ if __name__ == '__main__':
 
     for chosen_model in models:
         print(f'\n{chosen_model=}')
-        # y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_test, y_test,
-        #                                                                             chosen_model,
-        #                                                                             class_labels, filename,
-        #                                                                             train_model=False)
         y_test_labels, y_pred_labels = retrain_model(X_train, y_train, X_test, y_test, chosen_model)
         smoothed_predictions = []
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
