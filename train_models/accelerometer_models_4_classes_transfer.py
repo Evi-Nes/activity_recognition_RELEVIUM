@@ -398,7 +398,7 @@ def group_categories(y_labels, class_labels):
 
 def retrain_model(X_train, y_train, X_test, y_test, chosen_model):
 
-    pretrained_model = tf.keras.models.load_model(f"files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.keras")
+    pretrained_model = keras.models.load_model(f"files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.keras")
 
     model_without_last_layer = Model(inputs=pretrained_model.inputs, outputs=pretrained_model.layers[-2].output)
 
@@ -409,13 +409,13 @@ def retrain_model(X_train, y_train, X_test, y_test, chosen_model):
     # Compile the new model
     new_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=[keras.metrics.CategoricalAccuracy()])
     new_model.fit(X_train, y_train, validation_split=0.2, epochs=20, batch_size=64, verbose=2)
-    new_model.save(f'files_{filename}/saved_models_{filename}/acc_retrained_{chosen_model}_model.h5')
+    new_model.save(f'files_{filename}/saved_models_{filename}/acc_retrained_{chosen_model}_model.keras')
     # new_model.summary()
 
-    loss, accuracy = new_model.evaluate(X_train, y_train)
+    loss, accuracy = new_model.evaluate(X_train, y_train, verbose=0)
     print("Train Accuracy: %d%%, Train Loss: %d%%" % (100*accuracy, 100*loss))
 
-    y_pred = new_model.predict(X_test)
+    y_pred = new_model.predict(X_test, verbose=0)
     y_pred_labels = np.argmax(y_pred, axis=1)
     y_test_labels = np.argmax(y_test, axis=1)
     accuracy = accuracy_score(y_test_labels, y_pred_labels)

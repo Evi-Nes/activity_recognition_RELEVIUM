@@ -17,7 +17,6 @@ devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
-
 def apply_lowpass_filter(data, cutoff_freq=11, fs=25, order=4):
     """
     Apply a low-pass Butterworth filter to the signal.
@@ -200,7 +199,7 @@ def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_na
                   metrics=[keras.metrics.CategoricalAccuracy()])
 
     model.fit(X_train, y_train, epochs=30, batch_size=64, validation_split=0.2, verbose=2)
-    model.save(f'{file_name}.keras')
+    model.save(f'{file_name}')
 
     return model
 
@@ -215,7 +214,7 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     if not os.path.exists(f'files_{filename}/saved_models_{filename}'):
         os.makedirs(f'files_{filename}/saved_models_{filename}')
 
-    file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.h5'
+    file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.keras'
 
     if train_model:
         input_shape = (X_train.shape[1], X_train.shape[2])
@@ -223,10 +222,10 @@ def train_sequential_model(X_train, y_train, X_test, y_test, chosen_model, class
     else:
         model = keras.models.load_model(file_name)
 
-    loss, accuracy = model.evaluate(X_train, y_train)
+    loss, accuracy = model.evaluate(X_train, y_train, verbose=0)
     print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))
 
-    probabilities = model.predict(X_test)
+    probabilities = model.predict(X_test, verbose=0)
     window_size = 3
     threshold = 0.7
     y_test_labels = np.argmax(y_test, axis=1)
@@ -454,8 +453,8 @@ if __name__ == '__main__':
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    models = ['cnn_cnn_lstm']
-    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    # models = ['cnn_cnn_lstm']
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
     X_test, y_test, _ = process_data(test_path, samples_required, True)
 
@@ -469,7 +468,7 @@ if __name__ == '__main__':
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=False)
+                                                                                    train_model=True)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods

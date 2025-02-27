@@ -290,7 +290,6 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
         plt.savefig(f'{path}/{plot_name}', bbox_inches='tight', pad_inches=0.1)
 
 
-
 def plot_confusion_matrix_grouped(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
     """
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
