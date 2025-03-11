@@ -417,9 +417,10 @@ def group_categories(y_labels, class_labels):
     This function takes the activity labels and groups them to more generic categories, exercising, idle, walking, sleeping
     """
     predicted_categories = []
-    exercising_activities = ['running', 'cycling', 'static_exercising', 'dynamic_exercising']
-    idle_activities = ['sitting', 'lying']
-    standing_activities = ['walking', 'standing']
+    # 'running',
+    exercising_activities = ['cycling', 'static_exercising', 'dynamic_exercising']
+    idle_activities = ['sitting', 'standing']
+    lying_activities = ['sleeping', 'lying']
     y_labels = [class_labels[label] for label in y_labels]
 
     for activity in y_labels:
@@ -427,13 +428,15 @@ def group_categories(y_labels, class_labels):
             predicted_categories.append('exercising')
         elif activity in idle_activities:
             predicted_categories.append('idle')
-        elif activity in standing_activities:
-            predicted_categories.append('walking')
+        elif activity in lying_activities:
+            predicted_categories.append('lying')
         else:
             predicted_categories.append(activity)
 
     predicted_categories = np.array(predicted_categories)
-    # print(predicted_categories)
+
+    # unique, counts = np.unique(predicted_categories, return_counts=True)
+    # print(np.asarray((unique, counts)).T)
 
     return predicted_categories
 
@@ -443,18 +446,18 @@ if __name__ == '__main__':
     time_required_ms = 10000
     samples_required = int(time_required_ms * frequency / 1000)
     class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
-    category_labels = ['exercising', 'idle', 'sleeping', 'walking']
+    category_labels = ['exercising', 'idle', 'lying', 'running', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
-    filename = f"{time_required_ms}ms_8_classes"
+    filename = f"{time_required_ms}ms_8_classes_final"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    # models = ['cnn_cnn_lstm']
-    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    models = ['cnn_cnn_lstm']
+    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
     X_test, y_test, _ = process_data(test_path, samples_required, True)
 
@@ -468,7 +471,7 @@ if __name__ == '__main__':
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=True)
+                                                                                    train_model=False)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods
