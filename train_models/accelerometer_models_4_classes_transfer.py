@@ -180,100 +180,7 @@ def onehot_encode_data(y_train, y_test):
     return y_train, y_test
 
 
-def create_sequential_model(X_train, y_train, chosen_model, input_shape, file_name):
-    """
-    This function is used to create the sequential models. Given the chosen_model param, it chooses the appropriate
-    structure and then compiles the model.
-    :return: the chosen sequential model
-    """
-    model = keras.Sequential()
-    if chosen_model == 'cnn_lstm':
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.LSTM(units=32, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-    elif chosen_model == 'cnn_gru':
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.GRU(units=32, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-    elif chosen_model == 'cnn_cnn_lstm':
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.LSTM(units=64, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-    elif chosen_model == 'cnn_cnn_gru':
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.GRU(units=64, return_sequences=False, input_shape=input_shape))
-        model.add(keras.layers.Dropout(rate=0.4))
-    elif chosen_model == 'cnn_cnn':
-        model.add(Conv1D(filters=64, kernel_size=11, activation='relu', input_shape=input_shape))
-        model.add(Conv1D(filters=32, kernel_size=11, activation='relu'))
-        model.add(MaxPooling1D(pool_size=4))
-        model.add(keras.layers.Dropout(rate=0.4))
-        model.add(keras.layers.Flatten())
-        model.add(keras.layers.Dense(64, activation='relu'))
-        model.add(keras.layers.Dropout(rate=0.4))
-
-    model.add(keras.layers.Dense(y_train.shape[1], activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='adam',
-                  metrics=[keras.metrics.CategoricalAccuracy()])
-
-    model.fit(X_train, y_train, epochs=30, batch_size=64, validation_split=0.2, verbose=2)
-    model.save(f'{file_name}')
-
-    return model
-
-
-def train_sequential_model(X_test, y_test, chosen_model, class_labels, filename, train_model):
-    """
-    This function is used to train the sequential models. If train_model == True, then it trains the model using
-    X-train, y_train, else it loads the model from the existing file. Then, it evaluates the model and prints the
-    classification report.
-    :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
-    """
-    if not os.path.exists(f'files_{filename}/saved_models_{filename}'):
-        os.makedirs(f'files_{filename}/saved_models_{filename}')
-
-    file_name = f'files_{filename}/saved_models_{filename}/acc_{chosen_model}_model.keras'
-    model = keras.models.load_model(file_name)
-
-    probabilities = model.predict(X_test)
-    print(probabilities)
-    print(y_test)
-    window_size = 3
-    threshold = 0.7
-    y_test_labels = np.argmax(y_test, axis=1)
-    y_pred_labels = np.argmax(probabilities, axis=1)
-    print(y_test_labels)
-    print(y_pred_labels)
-
-    smoothed_predictions = []
-
-
-    # Calculate accuracy and other metrics
-    print("Accuracy with initial predictions: ", round(100 * accuracy_score(y_test_labels, y_pred_labels), 2))
-    print("F1 score with initial predictions :",
-          round(100 * f1_score(y_test_labels, y_pred_labels, average='weighted'), 2))
-    print("\nClassification Report for initial predictions: :")
-    print(classification_report(y_test_labels, y_pred_labels, target_names=class_labels))
-
-    activity_predictions_true = np.empty(len(y_test_labels), dtype=object)
-    for i in range(0, len(y_test_labels)):
-        activity_predictions_true[i] = class_labels[y_test_labels[i]]
-
-    activity_predictions = np.empty(len(y_pred_labels), dtype=object)
-    for i in range(0, len(y_pred_labels)):
-        activity_predictions[i] = class_labels[y_pred_labels[i]]
-
-    smoothed_predictions = np.array(smoothed_predictions)
-    return y_test_labels, y_pred_labels, smoothed_predictions
-
-
-def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename):
+def plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model, filename):
     """
     This function plots the confusion matrices, visualising the results of the sequential models. Using the y_test_labels
     and y_pred_labels parameters, it creates and saves the confusion matrix.
@@ -375,9 +282,9 @@ def group_categories(y_labels, class_labels):
     This function takes the activity labels and groups them to more generic categories, exercising, idle, walking, sleeping
     """
     predicted_categories = []
-    exercising_activities = ['running', 'cycling', 'static_exercising', 'dynamic_exercising']
-    idle_activities = ['sitting', 'lying']
-    standing_activities = ['walking', 'standing']
+    exercising_activities = ['cycling', 'static_exercising', 'dynamic_exercising']
+    idle_activities = ['sitting', 'standing']
+    lying_activities = ['sleeping', 'lying']
     y_labels = [class_labels[label] for label in y_labels]
 
     for activity in y_labels:
@@ -385,8 +292,8 @@ def group_categories(y_labels, class_labels):
             predicted_categories.append('exercising')
         elif activity in idle_activities:
             predicted_categories.append('idle')
-        elif activity in standing_activities:
-            predicted_categories.append('walking')
+        elif activity in lying_activities:
+            predicted_categories.append('lying')
         else:
             predicted_categories.append(activity)
 
@@ -435,11 +342,10 @@ if __name__ == '__main__':
     samples_required = int(time_required_ms * frequency / 1000)
     # class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
     class_labels = ['lying', 'running', 'sitting', 'standing', 'walking']
-    category_labels = ['exercising', 'idle', 'walking']
+    category_labels = ['idle', 'lying', 'running', 'walking']
     my_test_path = "../process_datasets/final_my_data_collector.csv"
     filename = f"{time_required_ms}ms_5_classes_transfer"
 
-    # print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
@@ -459,13 +365,14 @@ if __name__ == '__main__':
         print(f'\n{chosen_model=}')
         y_test_labels, y_pred_labels = retrain_model(X_train, y_train, X_test, y_test, chosen_model)
         smoothed_predictions = []
-        plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
+        plot_confusion_matrix(y_test_labels, y_pred_labels, class_labels, chosen_model, filename)
 
         # Make predictions with generic categories
         predicted_y_categories = group_categories(y_test_labels, class_labels)
         predicted_categories = group_categories(y_pred_labels, class_labels)
         predicted_categories_smooth = group_categories(smoothed_predictions, class_labels)
-
+        print(predicted_categories)
+        print(predicted_categories_smooth)
         print("\nAccuracy with initial predictions: ",
               round(100 * accuracy_score(predicted_y_categories, predicted_categories), 2))
         print("F1 score with initial predictions :",

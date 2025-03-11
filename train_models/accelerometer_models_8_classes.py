@@ -449,15 +449,15 @@ if __name__ == '__main__':
     category_labels = ['exercising', 'idle', 'lying', 'running', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
-    filename = f"{time_required_ms}ms_8_classes_final"
+    filename = f"{time_required_ms}ms_8_classes"
 
     print(f'\nTraining 8 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    models = ['cnn_cnn_lstm']
-    # models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
+    # models = ['cnn_cnn_lstm']
+    models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
     X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
     X_test, y_test, _ = process_data(test_path, samples_required, True)
 
@@ -471,7 +471,7 @@ if __name__ == '__main__':
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=False)
+                                                                                    train_model=True)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods
