@@ -442,24 +442,23 @@ def group_categories(y_labels, class_labels):
 
 
 if __name__ == '__main__':
-    frequency = 25
-    time_required_ms = 10000
-    samples_required = int(time_required_ms * frequency / 1000)
+    frequency = 25 # Hz
+    time_window = 10000 # in ms
+    samples_per_window = int(time_window * frequency / 1000)
     class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
     category_labels = ['exercising', 'idle', 'lying', 'running', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
-    filename = f"{time_required_ms}ms_8_classes"
+    filename = f"{time_window}ms_8_classes_final"
 
     print(f'\nTraining 8 classes from file: {train_path}')
-    print('Timesteps per timeseries: ', time_required_ms)
+    print('Timesteps per timeseries: ', time_window)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    # models = ['cnn_cnn_lstm']
     models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
-    X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
-    X_test, y_test, _ = process_data(test_path, samples_required, True)
+    X_train, y_train, unique_activities = process_data(train_path, samples_per_window, False)
+    X_test, y_test, _ = process_data(test_path, samples_per_window, True)
 
     # display_data(train_path, filename, False)
     # display_data(test_path, filename, True)
@@ -480,15 +479,15 @@ if __name__ == '__main__':
         # grouped_class_labels_smooth = merge_activity_periods(smoothed_predictions, class_labels)
 
         # Make predictions with generic categories
-        predicted_y_categories = group_categories(y_test_labels, class_labels)
+        y_labels_categories = group_categories(y_test_labels, class_labels)
         predicted_categories = group_categories(y_pred_labels, class_labels)
         predicted_categories_smooth = group_categories(smoothed_predictions, class_labels)
 
-        print("\nAccuracy with initial predictions: ",
-              round(100 * accuracy_score(predicted_y_categories, predicted_categories), 2))
-        print("F1 score with initial predictions :",
-              round(100 * f1_score(predicted_y_categories, predicted_categories, average='weighted'), 2))
-        print("\nClassification Report for initial predictions: :")
-        print(classification_report(predicted_y_categories, predicted_categories, target_names=category_labels))
+        print("\nAccuracy with categories predictions: ",
+              round(100 * accuracy_score(y_labels_categories, predicted_categories), 2))
+        print("F1 score with categories predictions:",
+              round(100 * f1_score(y_labels_categories, predicted_categories, average='weighted'), 2))
+        print("\nClassification Report for categories predictions:")
+        print(classification_report(y_labels_categories, predicted_categories, target_names=category_labels))
 
-        plot_confusion_matrix_grouped(predicted_y_categories, predicted_categories, predicted_categories_smooth, category_labels, chosen_model, filename)
+        plot_confusion_matrix_grouped(y_labels_categories, predicted_categories, predicted_categories_smooth, category_labels, chosen_model, filename)
