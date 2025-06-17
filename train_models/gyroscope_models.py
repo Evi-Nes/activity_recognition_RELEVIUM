@@ -3,6 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import keras
 import os
+import sys
+import io
 import contextlib
 import tensorflow as tf
 
@@ -22,7 +24,7 @@ contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 # print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 def plot_data_distribution(y_train, y_test, unique_activities, filename):
     """
@@ -482,22 +484,22 @@ def plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, cl
 
 if __name__ == '__main__':
     frequency = 25
-    time_required_ms = 10000
-    samples_required = int(time_required_ms * frequency / 1000)
+    time_window = 10000
+    samples_per_window = int(time_window * frequency / 1000)
     class_labels = ['cycling', 'dynamic_exercising', 'lying', 'running', 'sitting', 'standing', 'static_exercising', 'walking']
 
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_final_gyro"
+    filename = f"{time_window}ms_final_gyro"
 
     print(f'\nTraining 8 classes from file: {train_path}')
-    print('Timesteps per timeseries: ', time_required_ms)
+    print('Timesteps per timeseries: ', time_window)
     print(f"folder path: files_{filename}")
 
     # Implemented models
     models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
-    X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
-    X_test, y_test, _ = train_test_split(test_path, samples_required, True)
+    X_train, y_train, unique_activities = train_test_split(train_path, samples_per_window, False)
+    X_test, y_test, _ = train_test_split(test_path, samples_per_window, True)
 
     # Preprocess original and augmented data
     X_train_augmented, y_train_augmented = jittering_data(X_train, y_train)
