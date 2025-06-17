@@ -5,10 +5,12 @@ import keras
 import os
 import contextlib
 import tensorflow as tf
+import sys
+import io
 
-from sklearn.preprocessing import OneHotEncoder, RobustScaler, StandardScaler, MinMaxScaler
+from sklearn.preprocessing import OneHotEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, f1_score, classification_report, ConfusionMatrixDisplay
-from keras.src.layers import MaxPooling1D, Conv1D, Layer
+from keras.src.layers import MaxPooling1D, Conv1D
 from pickle import dump, load
 from scipy.signal import butter, filtfilt
 
@@ -16,6 +18,7 @@ from scipy.signal import butter, filtfilt
 devnull = open(os.devnull, 'w')
 contextlib.redirect_stderr(devnull)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 def apply_lowpass_filter(data, cutoff_freq=11, fs=25, order=4):
@@ -424,18 +427,15 @@ if __name__ == '__main__':
     category_labels = ['exercising', 'idle', 'walking']
     train_path = "../process_datasets/train_data.csv"
     test_path = "../process_datasets/test_data.csv"
-    filename = f"{time_required_ms}ms_8_classes_final"
+    filename = f"{time_required_ms}ms_combined_data"
 
-    print(f'\nTraining 8 classes from file: {train_path}')
+    print(f'\nTraining for 6 classes from file: {train_path}')
     print('Timesteps per timeseries: ', time_required_ms)
     print(f"folder path: files_{filename}")
 
     # Implemented models
-    # models = ['cnn_cnn_lstm']
     models = ['cnn_lstm','cnn_gru', 'cnn_cnn_lstm', 'cnn_cnn_gru']
-    # X_train, y_train, unique_activities = train_test_split(train_path, samples_required, False)
     X_train, y_train, unique_activities = process_data(train_path, samples_required, False)
-    # X_test, y_test, _ = train_test_split(test_path, samples_required, True)
     X_test, y_test, _ = process_data(test_path, samples_required, True)
 
     # display_data(train_path, filename, False)
