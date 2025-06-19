@@ -181,8 +181,7 @@ def train_sequential_model(X_train_augmented, y_train_augmented, X_test_acc, y_t
     :return: y_test_labels, y_pred_labels containing the actual y_labels of test set and the predicted ones.
     """
 
-    # file_name_acc = 'files_10000ms_final/saved_models_10000ms_final/acc_cnn_cnn_lstm_model.h5'
-    file_name_acc = 'files_10000ms_clean/saved_models_10000ms_clean/acc_cnn_cnn_lstm_model.h5'
+    file_name_acc = 'files_10000ms_8_classes_final/saved_models_10000ms_8_classes_final/acc_cnn_cnn_lstm_model.h5'
     model_acc = keras.models.load_model(file_name_acc)
     loss, accuracy = model_acc.evaluate(X_train_augmented, y_train_augmented)
     print("Train Accuracy: %d%%, Train Loss: %d%%" % (100 * accuracy, 100 * loss))

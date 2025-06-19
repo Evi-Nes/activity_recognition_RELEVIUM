@@ -17,11 +17,9 @@ sleeping, lying
 Unfortunately, there were no more datasets with heart rate data so we can't use them for now. Needs to be seen later on.
 
 
-## accelerometer_models_4_classes_apply.py, accelerometer_models_4_classes_transfer.py
-
-These files will be used when we acquire the real accelerometer data from the smartwatches. The first file can be used to 
-see how well the existing models perform on the new unseen data, by using/applying the models without any changes.
-
-The second file can be used for transfer learning, meaning to 
+## fine_tune_models.py
+This file will be used when we acquire the real accelerometer data from the smartwatches in order to 
 fine-tune the existing models for the new data. This is an important step that must be implemented in order to achieve maximum
 accuracy on the new data.
+
+Before running this file, it's necessary to save the acquired data to a csv file. Then, update the test path and run the code.
