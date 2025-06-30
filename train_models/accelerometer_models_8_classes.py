@@ -110,7 +110,7 @@ def process_data(path, timesteps, testing):
     data = data.dropna()
     data['activity'] = data['activity'].replace('static_exercising', 'dynamic_exercising')
     unique_activities = data['activity'].unique()
-
+    print(unique_activities)
     x_data, y_data = create_sequences(data[['accel_x', 'accel_y', 'accel_z']], data['activity'], timesteps, unique_activities)
 
     # Create augmented windows
@@ -418,7 +418,7 @@ def group_categories(y_labels, class_labels):
     """
     predicted_categories = []
     # 'running',
-    exercising_activities = ['cycling', 'static_exercising', 'dynamic_exercising']
+    exercising_activities = ['cycling', 'static_exercising', 'dynamic_exercising', 'running']
     idle_activities = ['sitting', 'standing']
     lying_activities = ['sleeping', 'lying']
     y_labels = [class_labels[label] for label in y_labels]
@@ -446,7 +446,7 @@ if __name__ == '__main__':
     time_window = 10000 # in ms
     samples_per_window = int(time_window * frequency / 1000)
     class_labels = ['cycling', 'exercising', 'lying', 'running', 'sitting', 'sleeping', 'standing', 'walking']
-    category_labels = ['exercising', 'idle', 'lying', 'running', 'walking']
+    category_labels = ['exercising', 'idle', 'lying', 'walking']
     train_path = "../process_datasets/train_data_9.csv"
     test_path = "../process_datasets/test_data_9.csv"
     filename = f"{time_window}ms_8_classes_final"
@@ -470,7 +470,7 @@ if __name__ == '__main__':
         y_test_labels, y_pred_labels, smoothed_predictions = train_sequential_model(X_train, y_train, X_test, y_test,
                                                                                     chosen_model,
                                                                                     class_labels, filename,
-                                                                                    train_model=True)
+                                                                                    train_model=False)
         plot_confusion_matrix(y_test_labels, y_pred_labels, smoothed_predictions, class_labels, chosen_model, filename)
 
         # Merge activity periods
